@@ -1,0 +1,41 @@
+Still to do:
+
+  *** Solidity.hs
+  *
+  * 
+  *---- Solidity.Parsing.hs ---------------
+  *
+  * - Better error handling in parsing
+  *
+  *---- Solidity.Instrumentation.hs -------
+  *
+  *
+  *****************************************
+
+  *** DAE.hs *****************************
+  *
+  *
+  *---- DAE.DAE.hs ----------------------
+  * 
+  *
+  *---- DAE.Parsing.hs -------------------
+  *
+  * - Better error handling in parsing
+  * - Check that functions used in the DAEs are defined and have the right number of parameters
+  * 
+  *---- DAE.Instrumentation.hs -----------
+  *
+  *
+  *****************************************
+
+  *** Main.hs *****************************
+  * 
+  *
+  *****************************************
+
+  *** GENERAL *****************************
+  *
+  * 
+  *****************************************
+
+
