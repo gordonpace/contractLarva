@@ -1,4 +1,4 @@
-# contractLarva
+# contractLarva: Runtime Verification of Solidity Smart Contracts
 Gordon J. Pace &lt;gordon.pace@um.edu.mt&gt;  
 Joshua Ellul &lt;joshua.ellul@um.edu.mt&gt;
 
@@ -22,4 +22,3 @@ To compile use any recent version of [GHC](https://www.haskell.org/ghc/) and sim
 
 ## License
 This project is licensed under the terms of the [Apache 2.0 license](LICENSE).
-
