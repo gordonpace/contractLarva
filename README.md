@@ -22,3 +22,10 @@ To compile use any recent version of [GHC](https://www.haskell.org/ghc/) and sim
 
 ## License
 This project is licensed under the terms of the [Apache 2.0 license](LICENSE).
+
+----
+# FAQ and Common Problems
+
+### When compiling the code I get the error: Could not find module ‘Text.Parsec’.
+Make sure you have installed parsec.  Also, see this stackoverflow thread (https://stackoverflow.com/questions/9058914/cant-find-parsec-modules-in-ghci)
+>cabal install parsec
