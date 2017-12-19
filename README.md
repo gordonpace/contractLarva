@@ -12,7 +12,7 @@ If you would like to ask any questions, report any bugs or make any feature requ
 
 ## Building the tool
 
-To compile contractLarva, you need a recent version of [GHC](https://www.haskell.org/ghc/). The easiest option is to install the [Haskell Platform](https://www.haskell.org/platform/) which comes with all the necessary libraries included. To compile contractLarva, then simply run the following command in the src folder:
+To compile contractLarva, you need a recent version of [GHC](https://www.haskell.org/ghc/). The easiest option is to install the [Haskell Platform](https://www.haskell.org/platform/) which comes with all the necessary libraries included (make sure that you choose to install the full platform, not the minimal one). To compile contractLarva, then simply run the following command in the src folder:
 
 > ghc -o contractlarva Main.hs
 
