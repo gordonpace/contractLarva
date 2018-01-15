@@ -602,8 +602,8 @@ instance Parseable Statement where
         <|>
         try (
           do
-            vd <- parser <* whitespace <* char '=' <* whitespace
-            me <- try (Just <$> parser) <|> return Nothing
+            vd <- parser <* whitespace
+            me <- try (Just <$> (char '=' *> whitespace *> parser)) <|> return Nothing
             _  <- whitespace *> char ';'
             return (SimpleStatementVariableDeclaration vd me)
           )
