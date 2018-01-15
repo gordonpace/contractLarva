@@ -23,7 +23,7 @@ import System.IO.Error
 import Text.Parsec hiding (try)
 import Text.Parsec.String
 import Solidity
-import DAE
+import DEA
 
 type Filename = String
 
@@ -34,29 +34,29 @@ ifNot :: Bool -> String -> IO ()
 ifNot c e = if c then return () else fail e
 
 parseIO :: Parseable a => Filename -> String -> IO a
-parseIO filename = either (fail . (parseError ++) . show) return . parse parser "" 
+parseIO filename = either (fail . (parseError ++) . show) return . parse parser ""
   where
     parseError = "Error during parsing of <"++filename++">\n"
 
-main = 
-  do 
+main =
+  do
     contractLarva <- getProgName
     arguments <- getArgs
-    ifNot (length arguments == 3)  
+    ifNot (length arguments == 3)
       ("Usage: "++contractLarva++" <specification> <input solidity file> <output solidity file>")
-    let [specificationFile, inFile, outFile] = arguments 
+    let [specificationFile, inFile, outFile] = arguments
 
-    specificationText <- readFile specificationFile 
+    specificationText <- readFile specificationFile
       `failWith` ("Cannot read specification file <"++specificationFile++">")
     specification <- parseIO specificationFile specificationText
     let problems = problemsSpecification specification
     ifNot (null problems) (unlines problems)
 
-    inputText <- readFile inFile 
+    inputText <- readFile inFile
       `failWith` ("Cannot read Solidity file <"++inFile++">")
     inCode <- parseIO inFile inputText
     let outCode = instrumentSpecification specification inCode
-    writeFile outFile (display outCode) 
+    writeFile outFile (display outCode)
       `failWith` ("Cannot write to Solidity file <"++outFile++">")
     putStrLn ("Created safe contract file <"++outFile++">")
   `catch` (putStrLn . ioeGetErrorString)

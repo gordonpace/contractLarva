@@ -12,7 +12,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-module DAE.Instrumentation (instrumentSpecification) where
+module DEA.Instrumentation (instrumentSpecification) where
 
 
 import Control.Monad hiding (guard)
@@ -23,8 +23,8 @@ import Data.List
 import Data.Maybe
 import Data.Either
 
-import DAE.DAE
-import DAE.Parsing
+import DEA.DEA
+import DEA.Parsing
 import Solidity
 
 instrumentContractSpecification :: ContractSpecification -> Instrumentation
@@ -35,8 +35,8 @@ instrumentContractSpecification monitor =
   -- (ii) Add LARVA_Status handlers
   addContractParts contract' (
     map parser'
-    [ -- Enumerated type to keep track whether contract is (i) not started (initially in ths state); (ii) ready 
-      -- (after the contract has been enabled but the constructor not yet called); (iii) running (enabled and 
+    [ -- Enumerated type to keep track whether contract is (i) not started (initially in ths state); (ii) ready
+      -- (after the contract has been enabled but the constructor not yet called); (iii) running (enabled and
       -- constructor called); (iv) stopped (contract disabled after it was running).
       "enum LARVA_STATUS { NOT_STARTED, READY, RUNNING, STOPPED }"
       -- LARVA_status keeps track of the current status of the contract
@@ -52,33 +52,33 @@ instrumentContractSpecification monitor =
     ]
   ) |>
       -- Add the first modifier to all functions (except the old and new constructors)
-  addTopModifierToAllButTheseFunctionInContract 
+  addTopModifierToAllButTheseFunctionInContract
     contract' [contract] (Identifier "LARVA_ContractIsEnabled", ExpressionList []) |>
       -- Add the second modifier to the old constructor
-  addTopModifierToFunctionInContract 
+  addTopModifierToFunctionInContract
     contract' contract (Identifier "LARVA_Constructor", ExpressionList []) |>
 
   -- (iii) Add declarations, and constructor, reparation, satisfaction functions of new contract
   addContractParts contract' (
-    [ (ContractPartFunctionDefinition 
-        (Just contract') (ParameterList []) 
-        [FunctionDefinitionTagPublic] 
-        Nothing 
+    [ (ContractPartFunctionDefinition
+        (Just contract') (ParameterList [])
+        [FunctionDefinitionTagPublic]
+        Nothing
         (Just $ initialisation monitor)
       )
-    , (ContractPartFunctionDefinition 
-        (Just $ Identifier "LARVA_reparation") (ParameterList []) 
-        [FunctionDefinitionTagPrivate] 
-        Nothing 
+    , (ContractPartFunctionDefinition
+        (Just $ Identifier "LARVA_reparation") (ParameterList [])
+        [FunctionDefinitionTagPrivate]
+        Nothing
         (Just $ reparation monitor)
       )
-    , (ContractPartFunctionDefinition 
-        (Just $ Identifier "LARVA_satisfaction") (ParameterList []) 
-        [FunctionDefinitionTagPrivate] 
-        Nothing 
+    , (ContractPartFunctionDefinition
+        (Just $ Identifier "LARVA_satisfaction") (ParameterList [])
+        [FunctionDefinitionTagPrivate]
+        Nothing
         (Just $ satisfaction monitor)
       )
-    ] ++ declarations monitor 
+    ] ++ declarations monitor
   ) |>
 
   -- (iv) Add setters for relevant variables
@@ -95,7 +95,7 @@ instrumentContractSpecification monitor =
     [ parser' ("int8 "++larva_state_variable n++" = 0;") | n <- [1..daeCount] ] |>
 
   -- (vi) Create modifiers to catch events and change state + attach modifiers to relevant functions
-  foldl (|>) id [ instrumentForDAE contract' (n,d) | (n,d) <- zip [1..] ds ] 
+  foldl (|>) id [ instrumentForDEA contract' (n,d) | (n,d) <- zip [1..] ds ]
 
   where
     contract = contractName monitor
@@ -105,19 +105,19 @@ instrumentContractSpecification monitor =
     daeCount = length ds
 
     larva_state_variable n = "LARVA_STATE_"++show n
-   
+
     parser' = fromRight undefined . parse parser ""
 
     f |> g = g . f
 
-    instrumentForDAE :: ContractName -> (Int, DAE) -> Instrumentation
-    instrumentForDAE contractName (daeNumber, dae) code =
+    instrumentForDEA :: ContractName -> (Int, DEA) -> Instrumentation
+    instrumentForDEA contractName (daeNumber, dae) code =
         foldl (|>) id (
-          map instrumentForEvent $ 
+          map instrumentForEvent $
             -- this returns (event, transitions which trigger on this event for this automaton)
             map (\ets -> (fst $ head ets, map snd ets)) $
               -- this groups the transitions by event
-              groupBy (\(e,_) (e',_) -> sameEvent e e') $ 
+              groupBy (\(e,_) (e',_) -> sameEvent e e') $
                 sortOn fst [ (event $ label t, t) | t <- transitions dae ]
         ) code
       where
@@ -151,30 +151,30 @@ instrumentContractSpecification monitor =
                 _                      -> Nothing
 
         nameModifier :: Event -> String
-        nameModifier (UponEntry fc) = 
-          "LARVA_DAE_"++show daeNumber++"_handle_before_"++display (functionName fc)++
+        nameModifier (UponEntry fc) =
+          "LARVA_DEA_"++show daeNumber++"_handle_before_"++display (functionName fc)++
           maybe "__no_parameters" (\ps -> "__parameters_"++intercalate "_" (map display $ fromUntypedParameterList ps)) (parametersPassed fc)
-        nameModifier (UponExit fc) = 
-          "LARVA_DAE_"++show daeNumber++"_handle_after_"++display (functionName fc)++
+        nameModifier (UponExit fc) =
+          "LARVA_DEA_"++show daeNumber++"_handle_after_"++display (functionName fc)++
           maybe "__no_parameters" (\ps -> "__parameters_"++intercalate "_" (map display $ fromUntypedParameterList ps)) (parametersPassed fc)
-        nameModifier (VariableAssignment vn _) =  
-          "LARVA_DAE_"++show daeNumber++"_handle_after_assignment_"++display vn
-        
+        nameModifier (VariableAssignment vn _) =
+          "LARVA_DEA_"++show daeNumber++"_handle_after_assignment_"++display vn
+
 
         instrumentForEvent :: (Event, [Transition]) -> Instrumentation
-        instrumentForEvent (e@(UponEntry functionCall), ts) = 
+        instrumentForEvent (e@(UponEntry functionCall), ts) =
           let function = functionName functionCall
 
               functionTypedParameters = getFunctionParameters contractName function code
-              functionParameters = 
-                ExpressionList $ 
-                  maybe [] 
+              functionParameters =
+                ExpressionList $
+                  maybe []
                     (const $ map (Literal . PrimaryExpressionIdentifier) $
                       fromUntypedParameterList $ untypeParameterList functionTypedParameters)
                         eventUntypedParameters
 
               eventUntypedParameters = parametersPassed functionCall
-              eventTypedParameters = 
+              eventTypedParameters =
                 maybe Nothing (\ps -> Just (typeParameterList ps functionTypedParameters)) eventUntypedParameters
 
               modifierName =  nameModifier e
@@ -188,30 +188,30 @@ instrumentContractSpecification monitor =
           let function = functionName functionCall
 
               functionTypedParameters = getFunctionParameters contractName function code
-              functionParameters = 
-                ExpressionList $ 
-                  maybe [] 
+              functionParameters =
+                ExpressionList $
+                  maybe []
                     (const $ map (Literal . PrimaryExpressionIdentifier) $
                       fromUntypedParameterList $ untypeParameterList functionTypedParameters)
                         eventUntypedParameters
 
               eventUntypedParameters = parametersPassed functionCall
-              eventTypedParameters = 
+              eventTypedParameters =
                 maybe Nothing (\ps -> Just (typeParameterList ps functionTypedParameters)) eventUntypedParameters
 
               modifierName = nameModifier e
           in -- Add modifier to function
-             addTopModifierToFunctionInContract contractName function 
+             addTopModifierToFunctionInContract contractName function
                (Identifier modifierName, functionParameters) |> (
              -- Define modifier to trigger transitions
              addContractPart contractName $ parser' $ modifierCode modifierName eventTypedParameters True ts
-             ) 
-        instrumentForEvent (e@(VariableAssignment variableName _), ts) = 
+             )
+        instrumentForEvent (e@(VariableAssignment variableName _), ts) =
           let modifierName =  nameModifier e
           in  -- Define modifier to trigger transitions
               (addContractPart contractName $ parser' $ modifierCode modifierName Nothing False ts) |>
               -- Add modifier to setter functions
-              addTopModifierToFunctionsInContract contractName 
+              addTopModifierToFunctionsInContract contractName
                 [ Identifier ("LARVA_set_"++display variableName++"_pre")
                 , Identifier ("LARVA_set_"++display variableName++"_post")
                 ]

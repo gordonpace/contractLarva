@@ -12,16 +12,16 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-module DAE.DAE (
-    Event (..), FunctionCall (..), isControlFlowEvent, isDataFlowEvent, 
+module DEA.DEA (
+    Event (..), FunctionCall (..), isControlFlowEvent, isDataFlowEvent,
     getFunctionNameFromEvent, getVariableNameFromEvent,
-    GCL (..), State (..), Transition (..), 
-    DAE (..), getEventsFromDAE, getFunctionsFromDAE, initialState,
-    
-    getVariablesFromDAE, getVariablesFromContractSpecification, 
-    
+    GCL (..), State (..), Transition (..),
+    DEA (..), getEventsFromDEA, getFunctionsFromDEA, initialState,
+
+    getVariablesFromDEA, getVariablesFromContractSpecification,
+
     functionCallEventHasParameters, getFunctionParametersFromEvent,
-    problemsSpecification, problemsContractSpecification, problemsDAE,
+    problemsSpecification, problemsContractSpecification, problemsDEA,
     ContractSpecification (..), Specification (..),
     module Solidity
   ) where
@@ -37,8 +37,8 @@ data Event
   | VariableAssignment VariableName (Maybe Expression)
   deriving (Eq, Ord, Show)
 
-data FunctionCall = 
-  FunctionCall {  
+data FunctionCall =
+  FunctionCall {
     functionName :: FunctionName,
     parametersPassed :: Maybe UntypedParameterList
   } deriving (Eq, Ord, Show)
@@ -79,7 +79,7 @@ data Transition =
       label :: GCL
 } deriving (Eq, Ord, Show)
 
-data DAE = DAE {
+data DEA = DEA {
   daeName :: String,
   allStates :: [State],
   initialStates :: [State],
@@ -94,25 +94,25 @@ data ContractSpecification = ContractSpecification {
   initialisation :: Block,
   satisfaction :: Block,
   reparation :: Block,
-  daes :: [DAE]
+  daes :: [DEA]
 } deriving (Eq, Ord, Show)
 
 newtype Specification = Specification { contractSpecifications :: [ContractSpecification] } deriving (Eq, Ord, Show)
 
-initialState :: DAE -> State
+initialState :: DEA -> State
 initialState = head . initialStates
 
-getEventsFromDAE :: DAE -> [Event]
-getEventsFromDAE = nub . map (event . label) . transitions
+getEventsFromDEA :: DEA -> [Event]
+getEventsFromDEA = nub . map (event . label) . transitions
 
-getFunctionsFromDAE :: DAE -> [FunctionName]
-getFunctionsFromDAE = nub . map getFunctionNameFromEvent . filter isControlFlowEvent . map (event . label) . transitions
+getFunctionsFromDEA :: DEA -> [FunctionName]
+getFunctionsFromDEA = nub . map getFunctionNameFromEvent . filter isControlFlowEvent . map (event . label) . transitions
 
-getVariablesFromDAE :: DAE -> [VariableName]
-getVariablesFromDAE = nub . map getVariableNameFromEvent . filter isDataFlowEvent . map (event . label) . transitions
+getVariablesFromDEA :: DEA -> [VariableName]
+getVariablesFromDEA = nub . map getVariableNameFromEvent . filter isDataFlowEvent . map (event . label) . transitions
 
 getVariablesFromContractSpecification :: ContractSpecification -> [VariableName]
-getVariablesFromContractSpecification = 
+getVariablesFromContractSpecification =
   nub . map getVariableNameFromEvent . filter isDataFlowEvent . map (event . label) . concat . map transitions . daes
 
 
@@ -129,30 +129,30 @@ problemsContractSpecification cspec
   | null problems = []
   | otherwise = ("Errors in definition of specification of contract <"++display (contractName cspec)++">"):problems
   where
-    problems = 
-      [ "  Multiple DAEs named <"++d++">"
-      | d <- nub dnames, length (filter (d==) dnames) > 1 
+    problems =
+      [ "  Multiple DEAs named <"++d++">"
+      | d <- nub dnames, length (filter (d==) dnames) > 1
       ] ++
       concat
-      [ ("  In definition of DAE <"++daeName dae++">"):map ("     - "++) ps
+      [ ("  In definition of DEA <"++daeName dae++">"):map ("     - "++) ps
       | dae <- daes cspec
-      , let ps = problemsDAE dae
+      , let ps = problemsDEA dae
       , not (null ps)
       ]
       where
         dnames = map daeName (daes cspec)
 
-problemsDAE :: DAE -> [String]
-problemsDAE dae =
-  [ "DAE has no initial state" | length (initialStates dae) == 0 ] ++ 
-  [ "DAE has more than one initial state" | length (initialStates dae) > 1 ] ++
-  [ "State <"++unState s++"> defined multiple times" 
+problemsDEA :: DEA -> [String]
+problemsDEA dae =
+  [ "DEA has no initial state" | length (initialStates dae) == 0 ] ++
+  [ "DEA has more than one initial state" | length (initialStates dae) > 1 ] ++
+  [ "State <"++unState s++"> defined multiple times"
   | s <- nub (allStates dae), length (filter (s==) (allStates dae)) > 1
   ] ++
-  [ "State <"++unState s++"> used in a transition but not declared" 
-  | s <- tstates, s `notElem` allStates dae 
+  [ "State <"++unState s++"> used in a transition but not declared"
+  | s <- tstates, s `notElem` allStates dae
   ]
   where
-    tstates = nub $ concat [ [src transition, dst transition] | transition <- transitions dae ] 
+    tstates = nub $ concat [ [src transition, dst transition] | transition <- transitions dae ]
 
 

@@ -12,8 +12,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-module DAE (module DAE.DAE, module DAE.Parsing, module DAE.Instrumentation) where
+module DEA (module DEA.DEA, module DEA.Parsing, module DEA.Instrumentation) where
 
-import DAE.DAE
-import DAE.Parsing
-import DAE.Instrumentation
+import DEA.DEA
+import DEA.Parsing
+import DEA.Instrumentation

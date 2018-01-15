@@ -179,7 +179,7 @@ data IndexedParameter = IndexedParameter {
 
 -------------------------------------------------------------------------------
 -- UntypedParameterList = '(' ( Identifier (',' Identifier)* )? ')'
--- Added for DAEs
+-- Added for DEAs
 
 newtype UntypedParameterList = UntypedParameterList { fromUntypedParameterList :: [Identifier] } deriving (Eq, Ord, Show)
 
@@ -452,14 +452,14 @@ data FunctionalAssemblyExpression = FunctionalAssemblyExpression Identifier [Ass
 
 typeParameterList :: UntypedParameterList -> ParameterList -> ParameterList
 typeParameterList (UntypedParameterList ups) (ParameterList tps) =
-  ParameterList $ zipWith 
-    (\parameter_name typed_parameter -> typed_parameter { parameterIdentifier = Just parameter_name }) 
-    ups 
-    (tps ++ 
+  ParameterList $ zipWith
+    (\parameter_name typed_parameter -> typed_parameter { parameterIdentifier = Just parameter_name })
+    ups
+    (tps ++
       repeat (
-        Parameter { 
-          parameterType = TypeNameUserDefinedTypeName (UserDefinedTypeName [Identifier "undefined"]), 
-          parameterIdentifier = Just (Identifier "undefined") 
+        Parameter {
+          parameterType = TypeNameUserDefinedTypeName (UserDefinedTypeName [Identifier "undefined"]),
+          parameterIdentifier = Just (Identifier "undefined")
         }
       )
     )

@@ -12,8 +12,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-module DAE.Parsing (
-  module Parseable, module DAE.DAE
+module DEA.Parsing (
+  module Parseable, module DEA.DEA
 ) where
 
 import Data.List
@@ -23,7 +23,7 @@ import Text.Parsec.String
 
 import Parseable
 import Solidity
-import DAE.DAE
+import DEA.DEA
 
 -- ------------------------------------
 readComment :: Parser ()
@@ -59,7 +59,7 @@ instance Parseable Specification where
   parser = whitespace *> (Specification <$> (many parser <* whitespace)) <* eof
 
 instance Parseable ContractSpecification where
-  display monitor = unlines $ 
+  display monitor = unlines $
     [ "monitor " ++ display (contractName monitor) ++ " {"
     , "declarations {"
     ] ++ map display (declarations monitor) ++
@@ -72,18 +72,18 @@ instance Parseable ContractSpecification where
       indentLineList = map ("   "++)
       indentLines line = concat [ if (c=='\n') then "\n   " else [c] | c <- line ]
 
-  parser = 
+  parser =
     do
       _contractName <- readKeyword "monitor" *> whitespace *> parser <* whitespace <* char '{' <* whitespace
-      _declarations <- 
+      _declarations <-
         (try (
           readKeyword "declarations" *> whitespace *> char '{' *> whitespace *> many (parser <* whitespace) <* char '}'
         ) <|> return []) <* whitespace
-      _initialisation <- 
+      _initialisation <-
         (try (readKeyword "initialisation" *> whitespace *> parser) <|> return (Block [])) <* whitespace
-      _reparation <- 
+      _reparation <-
         (try (readKeyword "reparation" *> whitespace *> parser) <|> return (Block [])) <* whitespace
-      _satisfaction <- 
+      _satisfaction <-
         (try (readKeyword "satisfaction" *> whitespace *> parser) <|> return (Block [])) <* whitespace
       _daes <- many (parser <* whitespace)
       _ <- char '}'
@@ -91,21 +91,21 @@ instance Parseable ContractSpecification where
         contractName = _contractName,
         declarations = _declarations,
         initialisation = _initialisation,
-        satisfaction = _satisfaction, 
+        satisfaction = _satisfaction,
         reparation = _reparation,
         daes = _daes
       }
 
-instance Parseable DAE where
+instance Parseable DEA where
   parser =
     do
-      _daeName <- readKeyword "DAE" *> whitespace *> readIdentifier <* whitespace <* char '{' <* whitespace
+      _daeName <- readKeyword "DEA" *> whitespace *> readIdentifier <* whitespace <* char '{' <* whitespace
       (_allStates, _initialStates, _badStates, _acceptanceStates) <- readStates <* whitespace
-      _transitions <- 
+      _transitions <-
         readKeyword "transitions" *> whitespace *> char '{' *> whitespace *>
         many (parser <* whitespace) <* char '}' <* whitespace
       _ <- char '}' <* whitespace
-      return DAE {
+      return DEA {
           daeName = _daeName,
           allStates = _allStates,
           initialStates = _initialStates,
@@ -133,9 +133,9 @@ instance Parseable DAE where
               badStates = [ s | (s,"bad") <- stateList ]
               acceptanceStates = [ s | (s,"accept") <- stateList ]
 
-  display dae = 
+  display dae =
     unlines $
-      [ "DAE "++daeName dae ++" {"
+      [ "DEA "++daeName dae ++" {"
       , "   states {"
       ] ++
       [ "     " ++ display state ++ describe state ++ ";"
@@ -185,14 +185,14 @@ instance Parseable GCL where
             try (const Nothing <$> char '|') <|>
             return Nothing
           ) <* whitespace
-      _action <- 
+      _action <-
           ( try (Just <$> (string "~>" *> whitespace *> parser)) <|>
             try (const Nothing <$> string "~>") <|>
             return Nothing
           )
       return GCL { event = _event, guard = _guard, action = _action }
-  display rule = concat $ 
-    [ display (event rule) ] ++ 
+  display rule = concat $
+    [ display (event rule) ] ++
     [ " | (" ++display c++")" | Just c <- [guard rule] ] ++
     [ " ~> {"++lineDisplay a++"}" | Just a <- [action rule]]
 
@@ -201,11 +201,11 @@ instance Parseable Event where
   parser =
     try (UponEntry <$> (readKeyword "before" *> whitespace *> char '(' *> whitespace *> parser <* whitespace <* char ')')) <|>
     try (UponExit <$> (readKeyword "after" *> whitespace *> char '(' *> whitespace *> parser <* whitespace <* char ')')) <|>
-    (VariableAssignment <$> 
-        (parser <* whitespace <* char '@' <* whitespace <* char '(' <* whitespace) <*> 
+    (VariableAssignment <$>
+        (parser <* whitespace <* char '@' <* whitespace <* char '(' <* whitespace) <*>
         (try (Just <$> parser <* whitespace <* char ')') <|> return Nothing)
     )
-  
+
   display (UponEntry fn) = "before("++display fn++")"
   display (UponExit fn) = "after("++display fn++")"
   display (VariableAssignment vn e) = display vn ++maybe "" (\e -> "@("++display e++")") e
@@ -218,4 +218,4 @@ instance Parseable FunctionCall where
       return (FunctionCall { functionName = fn, parametersPassed = maybe_el })
 
   display fc = display (functionName fc) ++ maybe "" display (parametersPassed fc)
-  
+
