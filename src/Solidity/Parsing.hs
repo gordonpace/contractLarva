@@ -981,7 +981,7 @@ instance Parseable ElementaryTypeName where
 
 instance Parseable InlineAssemblyBlock where
   display (InlineAssemblyBlock is) = "{ "++unlines (map display is)++" }"
-  parser = InlineAssemblyBlock <$> (char '{' *> many parser <* char '}')
+  parser = InlineAssemblyBlock <$> (char '{' *> whitespace *> many (parser <* whitespace) <* char '}')
 
 
 -- -------------------------------------------------------------------------------
@@ -1020,7 +1020,7 @@ instance Parseable AssemblyItem where
 instance Parseable FunctionalAssemblyExpression where
   parser =
     do
-      i <- parser <* whitespace <* char '('
+      i <- parser <* whitespace <* char '(' <* whitespace
       items <- commaSep (parser <* whitespace) <* char ')'
       return (FunctionalAssemblyExpression i items)
 
