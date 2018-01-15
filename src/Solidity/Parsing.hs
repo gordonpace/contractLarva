@@ -806,17 +806,17 @@ instance Parseable BooleanLiteral where
 instance Parseable NumberLiteral where
   parser =
      try (do
-        n <- string "0x" *> many1 (digit <|> oneOf "ABCDEFabcdef") <* char ' ' <* whitespace
+        n <- string "0x" *> many1 (digit <|> oneOf "ABCDEFabcdef")
         u <- parseMaybeUnits
         return (NumberLiteralHex n u)
       )
     <|>
     do
-      n <- many1 digit <* whitespace
+      n <- many1 digit
       u <- parseMaybeUnits
       return (NumberLiteralDec n u)
     where
-      parseMaybeUnits = try (Just <$> parser) <|> return Nothing
+      parseMaybeUnits = try (Just <$> char ' ' *> whitespace *> parser) <|> return Nothing
 
   display (NumberLiteralHex n units) = "0x"++ n ++ maybe "" _display units
   display (NumberLiteralDec n units) = n ++ maybe "" _display units
