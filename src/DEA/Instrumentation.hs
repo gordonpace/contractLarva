@@ -33,6 +33,14 @@ instrumentContractSpecification monitor =
   renameContract (contract, contract') |>
 
   -- (ii) Add LARVA_Status handlers
+  -- Add the modifier to check that the contract is enabled to all functions (except the old and new constructors)
+  addTopModifierToAllButTheseFunctionInContract
+    contract' [contract] (Identifier "LARVA_ContractIsEnabled", ExpressionList []) |>
+      -- Add the second modifier to the old constructor
+  addTopModifierToFunctionInContract
+    contract' contract (Identifier "LARVA_Constructor", ExpressionList []) |>
+
+
   addContractParts contract' (
     map parser'
     [ -- Enumerated type to keep track whether contract is (i) not started (initially in ths state); (ii) ready
@@ -48,17 +56,10 @@ instrumentContractSpecification monitor =
     , "modifier LARVA_ContractIsEnabled { require(LARVA_Status == LARVA_STATUS.RUNNING); _; }"
       -- Modifier to be added to the old constructor to ensure tha it is ready to be called and to set the status
       -- to running after terminating succesfully
-    , "modifier LARVA_Constructor { require(LARVA_Status == LARVA_STATUS.READY); _; LARVA_Status = LARVA_STATUS.RUNNING; }"
+    , "modifier LARVA_Constructor { require(LARVA_Status == LARVA_STATUS.READY); LARVA_Status = LARVA_STATUS.RUNNING; _; }"
     ]
   ) |>
-      -- Add the first modifier to all functions (except the old and new constructors)
-  addTopModifierToAllButTheseFunctionInContract
-    contract' [contract] (Identifier "LARVA_ContractIsEnabled", ExpressionList []) |>
-      -- Add the second modifier to the old constructor
-  addTopModifierToFunctionInContract
-    contract' contract (Identifier "LARVA_Constructor", ExpressionList []) |>
-
-  -- (iii) Add declarations, and constructor, reparation, satisfaction functions of new contract
+   -- (iii) Add declarations, and constructor, reparation, satisfaction functions of new contract
   addContractParts contract' (
     [ (ContractPartFunctionDefinition
         (Just contract') (ParameterList [])
