@@ -174,7 +174,7 @@ instance Parseable Transition where
       _dst <- parser <* whitespace <* char ';'
       return Transition { src = _src, dst = _dst, label = _label }
   display transition =
-    display (src transition)++" -["++display (label transition)++"]-> "++display (src transition)
+    display (src transition)++" -["++display (label transition)++"]-> "++display (dst transition)
 
 instance Parseable GCL where
   parser =
