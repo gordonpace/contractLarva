@@ -80,7 +80,7 @@ data Transition =
 } deriving (Eq, Ord, Show)
 
 data DEA = DEA {
-  daeName :: String,
+  deaName :: String,
   allStates :: [State],
   initialStates :: [State],
   transitions :: [Transition],
@@ -94,7 +94,7 @@ data ContractSpecification = ContractSpecification {
   initialisation :: Block,
   satisfaction :: Block,
   reparation :: Block,
-  daes :: [DEA]
+  deas :: [DEA]
 } deriving (Eq, Ord, Show)
 
 newtype Specification = Specification { contractSpecifications :: [ContractSpecification] } deriving (Eq, Ord, Show)
@@ -113,7 +113,7 @@ getVariablesFromDEA = nub . map getVariableNameFromEvent . filter isDataFlowEven
 
 getVariablesFromContractSpecification :: ContractSpecification -> [VariableName]
 getVariablesFromContractSpecification =
-  nub . map getVariableNameFromEvent . filter isDataFlowEvent . map (event . label) . concat . map transitions . daes
+  nub . map getVariableNameFromEvent . filter isDataFlowEvent . map (event . label) . concat . map transitions . deas
 
 
 problemsSpecification :: Specification -> [String]
@@ -134,25 +134,25 @@ problemsContractSpecification cspec
       | d <- nub dnames, length (filter (d==) dnames) > 1
       ] ++
       concat
-      [ ("  In definition of DEA <"++daeName dae++">"):map ("     - "++) ps
-      | dae <- daes cspec
-      , let ps = problemsDEA dae
+      [ ("  In definition of DEA <"++deaName dea++">"):map ("     - "++) ps
+      | dea <- deas cspec
+      , let ps = problemsDEA dea
       , not (null ps)
       ]
       where
-        dnames = map daeName (daes cspec)
+        dnames = map deaName (deas cspec)
 
 problemsDEA :: DEA -> [String]
-problemsDEA dae =
-  [ "DEA has no initial state" | length (initialStates dae) == 0 ] ++
-  [ "DEA has more than one initial state" | length (initialStates dae) > 1 ] ++
+problemsDEA dea =
+  [ "DEA has no initial state" | length (initialStates dea) == 0 ] ++
+  [ "DEA has more than one initial state" | length (initialStates dea) > 1 ] ++
   [ "State <"++unState s++"> defined multiple times"
-  | s <- nub (allStates dae), length (filter (s==) (allStates dae)) > 1
+  | s <- nub (allStates dea), length (filter (s==) (allStates dea)) > 1
   ] ++
   [ "State <"++unState s++"> used in a transition but not declared"
-  | s <- tstates, s `notElem` allStates dae
+  | s <- tstates, s `notElem` allStates dea
   ]
   where
-    tstates = nub $ concat [ [src transition, dst transition] | transition <- transitions dae ]
+    tstates = nub $ concat [ [src transition, dst transition] | transition <- transitions dea ]
 
 

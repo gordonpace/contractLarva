@@ -67,7 +67,7 @@ instance Parseable ContractSpecification where
     , "initialisation ", display (initialisation monitor)
     , "reparation ", display (reparation monitor)
     , "satisfaction ", display (satisfaction monitor)
-    ] ++ map display (daes monitor) ++ ["}"]
+    ] ++ map display (deas monitor) ++ ["}"]
     where
       indentLineList = map ("   "++)
       indentLines line = concat [ if (c=='\n') then "\n   " else [c] | c <- line ]
@@ -85,7 +85,7 @@ instance Parseable ContractSpecification where
         (try (readKeyword "reparation" *> whitespace *> parser) <|> return (Block [])) <* whitespace
       _satisfaction <-
         (try (readKeyword "satisfaction" *> whitespace *> parser) <|> return (Block [])) <* whitespace
-      _daes <- many (parser <* whitespace)
+      _deas <- many (parser <* whitespace)
       _ <- char '}'
       return $ ContractSpecification {
         contractName = _contractName,
@@ -93,20 +93,20 @@ instance Parseable ContractSpecification where
         initialisation = _initialisation,
         satisfaction = _satisfaction,
         reparation = _reparation,
-        daes = _daes
+        deas = _deas
       }
 
 instance Parseable DEA where
   parser =
     do
-      _daeName <- readKeyword "DEA" *> whitespace *> readIdentifier <* whitespace <* char '{' <* whitespace
+      _deaName <- readKeyword "DEA" *> whitespace *> readIdentifier <* whitespace <* char '{' <* whitespace
       (_allStates, _initialStates, _badStates, _acceptanceStates) <- readStates <* whitespace
       _transitions <-
         readKeyword "transitions" *> whitespace *> char '{' *> whitespace *>
         many (parser <* whitespace) <* char '}' <* whitespace
       _ <- char '}' <* whitespace
       return DEA {
-          daeName = _daeName,
+          deaName = _deaName,
           allStates = _allStates,
           initialStates = _initialStates,
           transitions = _transitions,
@@ -133,18 +133,18 @@ instance Parseable DEA where
               badStates = [ s | (s,"bad") <- stateList ]
               acceptanceStates = [ s | (s,"accept") <- stateList ]
 
-  display dae =
+  display dea =
     unlines $
-      [ "DEA "++daeName dae ++" {"
+      [ "DEA "++deaName dea ++" {"
       , "   states {"
       ] ++
       [ "     " ++ display state ++ describe state ++ ";"
-      | state <- allStates dae
+      | state <- allStates dea
       ] ++
       [ "   }"
       , "   transitions {"
       ] ++
-      [ "     " ++ display t++";" | t <- transitions dae ] ++
+      [ "     " ++ display t++";" | t <- transitions dea ] ++
       [ "   }"
       , "}"
       ]
@@ -154,9 +154,9 @@ instance Parseable DEA where
         | otherwise = ": "++intercalate ", " keywords
         where
           keywords =
-            ["initial" | state == initialState dae]++
-            ["bad" | state `elem` badStates dae]++
-            ["accept" | state `elem` acceptanceStates dae]
+            ["initial" | state == initialState dea]++
+            ["bad" | state `elem` badStates dea]++
+            ["accept" | state `elem` acceptanceStates dea]
 
 
 instance Parseable State where

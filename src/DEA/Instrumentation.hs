@@ -93,7 +93,7 @@ instrumentContractSpecification monitor =
   -- Start instrumenting the DEAs
   -- (v) Add variables to store state of each DEA: LARVA_STATE_n, all initialised to 0.
   addContractParts contract'
-    [ parser' ("int8 "++larva_state_variable n++" = 0;") | n <- [1..daeCount] ] |>
+    [ parser' ("int8 "++larva_state_variable n++" = 0;") | n <- [1..deaCount] ] |>
 
   -- (vi) Create modifiers to catch events and change state + attach modifiers to relevant functions
   foldl (|>) id [ instrumentForDEA contract' (n,d) | (n,d) <- zip [1..] ds ]
@@ -102,8 +102,8 @@ instrumentContractSpecification monitor =
     contract = contractName monitor
     contract' = Identifier $ "LARVA_" ++ display contract
 
-    ds = daes monitor
-    daeCount = length ds
+    ds = deas monitor
+    deaCount = length ds
 
     larva_state_variable n = "LARVA_STATE_"++show n
 
@@ -112,14 +112,14 @@ instrumentContractSpecification monitor =
     f |> g = g . f
 
     instrumentForDEA :: ContractName -> (Int, DEA) -> Instrumentation
-    instrumentForDEA contractName (daeNumber, dae) code =
+    instrumentForDEA contractName (deaNumber, dea) code =
         foldl (|>) id (
           map instrumentForEvent $
             -- this returns (event, transitions which trigger on this event for this automaton)
             map (\ets -> (fst $ head ets, map snd ets)) $
               -- this groups the transitions by event
               groupBy (\(e,_) (e',_) -> sameEvent e e') $
-                sortOn fst [ (event $ label t, t) | t <- transitions dae ]
+                sortOn fst [ (event $ label t, t) | t <- transitions dea ]
         ) code
       where
         sameEvent (UponEntry f) (UponEntry f') = f==f'
@@ -132,15 +132,15 @@ instrumentContractSpecification monitor =
           unlines $
             [ "modifier "++modifierName++maybe "" display mps++" {"] ++
             (if before then [] else ["_;"]) ++
-            [ "if (("++larva_state_variable daeNumber++" == "++stateNumber (src t)++")"++
+            [ "if (("++larva_state_variable deaNumber++" == "++stateNumber (src t)++")"++
               maybe "" (\cond -> " && ("++display cond++")") (guard gcl) ++
               maybe "" (\cond -> " && ("++display cond++")") condition ++
-              ") { "++larva_state_variable daeNumber++" = "++stateNumber (dst t)++";"++
+              ") { "++larva_state_variable deaNumber++" = "++stateNumber (dst t)++";"++
               display (action gcl)++reparationCode++satisfactionCode++"} else {"
             | t <- ts, let gcl = label t
             , let condition = variableAssignmentExpression gcl
-            , let reparationCode = if dst t `elem` badStates dae then " LARVA_reparation(); " else ""
-            , let satisfactionCode = if dst t `elem` acceptanceStates dae then " LARVA_satisfaction(); " else ""
+            , let reparationCode = if dst t `elem` badStates dea then " LARVA_reparation(); " else ""
+            , let satisfactionCode = if dst t `elem` acceptanceStates dea then " LARVA_satisfaction(); " else ""
             ] ++
             [ "   "++ replicate (length ts) '}' ] ++
             (if before then ["_;"] else []) ++
@@ -153,13 +153,13 @@ instrumentContractSpecification monitor =
 
         nameModifier :: Event -> String
         nameModifier (UponEntry fc) =
-          "LARVA_DEA_"++show daeNumber++"_handle_before_"++display (functionName fc)++
+          "LARVA_DEA_"++show deaNumber++"_handle_before_"++display (functionName fc)++
           maybe "__no_parameters" (\ps -> "__parameters_"++intercalate "_" (map display $ fromUntypedParameterList ps)) (parametersPassed fc)
         nameModifier (UponExit fc) =
-          "LARVA_DEA_"++show daeNumber++"_handle_after_"++display (functionName fc)++
+          "LARVA_DEA_"++show deaNumber++"_handle_after_"++display (functionName fc)++
           maybe "__no_parameters" (\ps -> "__parameters_"++intercalate "_" (map display $ fromUntypedParameterList ps)) (parametersPassed fc)
         nameModifier (VariableAssignment vn _) =
-          "LARVA_DEA_"++show daeNumber++"_handle_after_assignment_"++display vn
+          "LARVA_DEA_"++show deaNumber++"_handle_after_assignment_"++display vn
 
 
         instrumentForEvent :: (Event, [Transition]) -> Instrumentation
@@ -221,8 +221,8 @@ instrumentContractSpecification monitor =
 
         stateNumber stateName = show $ fromJust $ elemIndex stateName ss
           where
-            s0 = initialState dae
-            ss = s0: (allStates dae \\ [s0])
+            s0 = initialState dea
+            ss = s0: (allStates dea \\ [s0])
 
 
 instrumentSpecification :: Specification -> Instrumentation
