@@ -226,7 +226,7 @@ instance Parseable ContractPart where
         ps <- parser <* whitespace
         ts <- many (parser <* whitespace)
         b <- ((const Nothing <$> char ';') <|> (Just <$> parser))
-        return (ContractPartFunctionDefinition (Just $ Identifier "constructor") ps ts Nothing b)
+        return (ContractPartConstructorDefinition ps ts b)
     , char 'e' *> (
         do
           i <- keyword "num" *> whitespace *> parser <* whitespace <* char '{' <* whitespace
@@ -252,6 +252,9 @@ instance Parseable ContractPart where
   display (ContractPartFunctionDefinition mi pl ts mpl' mb) =
     "function" ++ maybe "" _display mi ++ _display pl ++
     concatMap _display ts ++ maybe "" ((" returns " ++) . display) mpl' ++ maybe ";" _display mb
+  display (ContractPartConstructorDefinition pl ts mb) =
+    "constructor" ++ _display pl ++
+    concatMap _display ts ++ maybe ";" _display mb
   display (ContractPartEventDefinition i ipl a) =
     "event "++display i++_display ipl++(if a then " anonymous" else "") ++ ";"
   display (ContractPartStateVariableDeclaration v) = display v
