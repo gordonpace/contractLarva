@@ -110,6 +110,7 @@ data ContractDefinition =
 --    = 'using' Identifier 'for' ('*' | TypeName) ';'
 --    | 'struct' Identifier '{' ( VariableDeclaration ';' (VariableDeclaration ';')* )? '}'
 --    | 'modifier' Identifier ParameterList? Block
+--    | 'constructor' ParameterList ( FunctionDefinitionTag )* ( ';' | Block )
 --    | 'function' Identifier? ParameterList  ( FunctionDefinitionTag )* ( 'returns' ParameterList )? ( ';' | Block )
 --    | 'enum' Identifier '{' EnumValue? (',' EnumValue)* '}'
 --    | 'event' Identifier IndexedParameterList 'anonymous'? ';'
@@ -119,6 +120,7 @@ data ContractPart
   = ContractPartUsingForDeclaration Identifier (Maybe TypeName)
   | ContractPartStructDefinition Identifier [VariableDeclaration]
   | ContractPartModifierDefinition Identifier (Maybe ParameterList) Block
+  | ContractPartConstructorDefinition ParameterList [FunctionDefinitionTag] (Maybe Block)
   | ContractPartFunctionDefinition (Maybe Identifier) ParameterList [FunctionDefinitionTag] (Maybe ParameterList) (Maybe Block)
   | ContractPartEnumDefinition Identifier [EnumValue]
   | ContractPartEventDefinition Identifier IndexedParameterList Bool
