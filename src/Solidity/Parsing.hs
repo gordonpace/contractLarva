@@ -626,6 +626,7 @@ instance Parseable Statement where
   display (SimpleStatementExpression e) = display e++";"
   display (SimpleStatementVariableList il me) = "var " ++ display il ++ maybe "" (\e -> " = "++display e) me++";"
   display (SimpleStatementVariableDeclaration v me) = display v ++ maybe "" (\e -> " = "++display e) me ++";"
+  display (SimpleStatementVariableDeclarationList v me) = "(" ++ intercalate "," (map display v) ++ ")" ++ "(" ++ intercalate "," (map display me) ++ ")" ++";"
 
   parser =
     try (choice
@@ -673,10 +674,24 @@ instance Parseable Statement where
         <|>
         try (
           do
-            vd <- parser <* whitespace
+            vd <- try (char '(' *> whitespace *> parser <* whitespace <* char ')') <|> parser
+            whitespace
             me <- try (Just <$> (char '=' *> whitespace *> parser)) <|> return Nothing
             _  <- whitespace *> char ';'
             return (SimpleStatementVariableDeclaration vd me)
+          )
+        <|>
+        try (
+          do
+            char '(' <* whitespace
+            vd <- commaSep1 (whitespace *> parser <* whitespace) 
+            char ')' <* whitespace
+            char '=' <* whitespace
+            char '(' <* whitespace
+            me <- commaSep1 (whitespace *> parser <* whitespace) 
+            char ')'
+            whitespace <* char ';'
+            return (SimpleStatementVariableDeclarationList vd me)
           )
         <|>
         SimpleStatementExpression <$> parser <* whitespace <* char ';'
