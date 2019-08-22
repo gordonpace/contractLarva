@@ -21,6 +21,7 @@ module Solidity.Solidity (
     SourceUnit (..),
       SourceUnit1 (..),
     PragmaDirective (..),
+      VersionComparator (..), Version (..),
     ImportDirective (..),
       ImportDirective1(..), Import (..),
     ContractDefinition (..),
@@ -69,10 +70,21 @@ data SourceUnit1
   deriving (Show, Eq, Ord)
 
 -------------------------------------------------------------------------------
--- PragmaDirective = 'pragma' Identifier ([^;]+) ';'
--- Pragma actually parses anything up to the trailing ';' to be fully forward-compatible.
+-- VersionComparator = '^' | '>' | '<' | '<=' | '>='
 
-newtype PragmaDirective = PragmaDirective (Identifier, String) deriving (Show, Eq, Ord)
+data VersionComparator = Less | More | Equal | LessOrEqual | MoreOrEqual deriving (Show, Eq, Ord)
+
+-- Version = VersionComparator ([0-9]+\.)+
+
+data Version = Version VersionComparator [Int] deriving (Show, Eq, Ord)
+
+-- PragmaDirective = 'pragma' ('solidity' | 'experimental' ) 
+--                       ( (VersionComparator ' ' Version) ('||' (VersionComparator ' ' Version))*
+--                        | (VersionComparator ' ' Version) (' ' (VersionComparator ' ' Version))*) ';'
+
+data PragmaDirective = SolidityPragmaConjunction [Version] 
+                     | SolidityPragmaDisjunction [Version] 
+                     | ExperimentalPragma String deriving (Show, Eq, Ord)
 
 -------------------------------------------------------------------------------
 -- ImportDirective = 'import' StringLiteral ('as' Identifier)? ';'
