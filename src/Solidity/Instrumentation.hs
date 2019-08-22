@@ -15,6 +15,8 @@
 module Solidity.Instrumentation (
   Instrumentation, 
 
+  oldStyleConstructorUsed, newStyleConstructorUsed, useNewStyleConstructor, constructorIsDefinedInContract, 
+  conditionalInstrumentation, addTopModifierToContractConstructor,
   getAllDefinedContractNames, getAllDefinedFunctionNames, getAllDefinedModifierNames,
   getFunctionParameters,
 
@@ -70,6 +72,11 @@ getAllDefinedModifierNames s =
   | cn <- contractsDefined s
   ]
 
+functionIsDefinedInContract :: ContractName -> FunctionName -> SolidityCode -> Bool
+functionIsDefinedInContract cn fn code = case (getFunctionFromContract cn fn code) of
+                                                Just _ -> True
+                                                _ -> False
+
 functionIsPublicInContract :: ContractName -> FunctionName -> SolidityCode -> Bool
 functionIsPublicInContract cn fn code =
   let Just (ContractPartFunctionDefinition _ _ ts _ _) = getFunctionFromContract cn fn code
@@ -116,12 +123,125 @@ defineAndUseSetterFunctionForVariableInContract cn vn (fnPreValue, fnPostValue) 
       "function "++f++"("++t++" _"++v++") "++visibilityOfVariable++" returns ("++t++") { "++
         "LARVA_previous_"++v++" = "++v++"; "++v++" = _"++v++"; return LARVA_previous_"++v++"; }"
 
+-- DEALING WITH CONSTRUCTORS
+
+--Old denotes old-style of constructors using name of smart contract, allowable before version 0.5
+--New denotes new-style of constructors using <constructors> keyword, allowed after version 0.4.23 and obliged for versions >= 0.5
+--Both denotes when both styles are acceptable (>=0.4.23 and <0.5)
+
+--                Old
+--            <-----------|            Both
+--                          |---------------------------|      New
+--                                                        |------------>
+--            ------------------------------------------------------
+--                        | |                           | |
+--                   0.4.22 0.4.23                 0.4.26 0.5
+
+data ConstructorStyle = OldStyle | NewStyle | Both deriving (Eq)
+
+--Functions to detect whether a version number is bigger or less than anothe
+biggerThan :: [Int] -> [Int] -> Bool
+biggerThan (v1:vs1) (v2:vs2) = if v1 > v2
+                                  then True
+                                  else if v1 < v2
+                                          then False
+                                          else biggerThan vs1 vs2
+biggerThan (v:vs) [] = True
+biggerThan [] _ = False
+
+lessThan :: [Int] -> [Int] -> Bool
+lessThan (v1:vs1) (v2:vs2) = if v1 < v2
+                                  then True
+                                  else if v1 > v2
+                                          then False
+                                          else lessThan vs1 vs2
+lessThan [] (v:vs) = True
+lessThan _ [] = False
+
+--Computing the style of constructors allowed by the specified version
+constructorStylesPossible :: Version -> [ConstructorStyle]
+
+constructorStylesPossible (Version Equal no) = if no `biggerThan` [0,4,23] || no == [0,4,23]
+                                                  then if no `biggerThan` [0,5] || no == [0,5]
+                                                        then [NewStyle]
+                                                        else [Both]
+                                                  else [OldStyle]
+  
+constructorStylesPossible (Version Less no) = if no `lessThan` [0,4,23] || no == [0,4,23]
+                                                  then [OldStyle]
+                                                  else if no `lessThan` [0,5] || no == [0,5]
+                                                        then [OldStyle, Both]
+                                                        else [NewStyle, OldStyle, Both]
+  
+constructorStylesPossible (Version More no) = if no `biggerThan` [0,4,26] || no == [0,4,26]
+                                                  then [NewStyle]
+                                                  else if no `biggerThan` [0,4,22] || no == [0,4,22]
+                                                          then [NewStyle, Both]
+                                                          else [OldStyle, NewStyle, Both]
+  
+constructorStylesPossible (Version LessOrEqual no) = if no `lessThan` [0,4,22]
+                                                        then [OldStyle]
+                                                        else if no `lessThan` [0,4,26]
+                                                              then [OldStyle, Both]
+                                                              else [NewStyle, OldStyle, Both]
+  
+constructorStylesPossible (Version MoreOrEqual no) = if no `biggerThan` [0,5]
+                                                          then [NewStyle]
+                                                          else if no `biggerThan` [0,4,23]
+                                                                  then [NewStyle, Both]
+                                                                  else [OldStyle, NewStyle, Both]
+  
+
+
+
+--Check whether a new style or an old style constructor should be used for the contracts in the specified smart contracts
+-- for both a conjunction and disjunction of version ranges the intersection of the styles of each version is computed
+-- a new style constructor is then used if the computed styles include NewStyle or if they only contain Both
+-- an old style constructor is used otherwise, i.e. if NewStyle is not in the computed styles and OldStyle is
+-- 
+-- Note how if the version range specified allows for non-compatible compilers (i.e. OldStyle, NewStyle <- styles ) 
+--  then we default to using the new compiler and leave it up to the user to manually correct the contract during compilation
+-- Note also how the intersection of version styles is used for both conjunction and disjunction of versions to remain conservative
+useNewStyleConstructor :: SolidityCode -> Bool
+useNewStyleConstructor (SolidityCode (SourceUnit ((SourceUnit1_PragmaDirective (SolidityPragmaConjunction versions)):rest))) 
+    = let styles = foldr (intersect) ([NewStyle, OldStyle, Both]) (map constructorStylesPossible versions)
+        in if styles == [Both] || NewStyle `elem` styles
+              then True
+              else False
+
+
+useNewStyleConstructor (SolidityCode (SourceUnit ((SourceUnit1_PragmaDirective (SolidityPragmaDisjunction versions)):rest))) 
+    = let styles = foldr (intersect) ([]) (map constructorStylesPossible versions)
+        in if styles == [Both] || NewStyle `elem` styles
+              then True
+              else False
+
+useNewStyleConstructor (SolidityCode (SourceUnit (_:rest))) = useNewStyleConstructor (SolidityCode (SourceUnit rest))
+useNewStyleConstructor _ = True
+
+--Checking if a constructor is defined in the smart contract, and in which style
+constructorIsDefinedInContract :: ContractName -> SolidityCode -> Bool
+constructorIsDefinedInContract cn code = oldStyleConstructorUsed cn code || newStyleConstructorUsed cn code
+
+oldStyleConstructorUsed :: ContractName -> SolidityCode -> Bool
+oldStyleConstructorUsed cn code = functionIsDefinedInContract cn cn code
+
+newStyleConstructorUsed :: ContractName -> SolidityCode -> Bool
+newStyleConstructorUsed cn code = let Just c = getContract cn code
+                                    in  not $ null [ "" |  ContractPartConstructorDefinition _ _ _ <- contractParts c]
+
 -- PARSING STUFF LOCALLY
 
 parseDeclaration :: String -> ContractPart
 parseDeclaration = fromRight undefined . parse parser ""
 
 -- CONTRACT MODIFIERS
+conditionalInstrumentation :: (SolidityCode -> Bool) -> Instrumentation -> Instrumentation
+conditionalInstrumentation pred instr = \x -> if pred x
+                                                then instr x
+                                                else x
+
+
 addContractParts :: ContractName -> [ContractPart] -> Instrumentation
 addContractParts contractName contractParts =
   updateContract contractName (insertContractParts contractParts)
@@ -155,6 +275,10 @@ renameFunctionsInContract = renameFunctionsWithinContract
 addTopModifierToFunctionInContract :: ContractName -> FunctionName -> (ModifierName, ExpressionList) -> Instrumentation
 addTopModifierToFunctionInContract cn f (mn, es) =
   addModifierToFunctionsWithinContract cn (f==) (mn, es)
+
+addTopModifierToContractConstructor :: ContractName -> (ModifierName, ExpressionList) -> Instrumentation
+addTopModifierToContractConstructor cn (mn, es) =
+  addModifierToContractConstructor cn (mn, es)
 
 addTopModifierToFunctionsInContract :: ContractName -> [FunctionName] -> (ModifierName, ExpressionList) -> Instrumentation
 addTopModifierToFunctionsInContract cn fs (mn, es) =
@@ -207,6 +331,7 @@ class SolidityNode a where
   getFunctionFromContract :: Identifier -> Identifier -> a -> Maybe ContractPart
   renameFunctionsWithinContract :: Identifier -> (Identifier -> Identifier) -> a -> a
   addModifierToFunctionsWithinContract :: Identifier -> (Identifier -> Bool) -> (Identifier, ExpressionList) -> a -> a
+  addModifierToContractConstructor :: Identifier -> (Identifier, ExpressionList) -> a -> a
 
   getModifierFromContract :: Identifier -> Identifier -> a -> Maybe ContractPart
   renameModifiersWithinContract :: Identifier -> (Identifier -> Identifier) -> a -> a
@@ -242,6 +367,7 @@ instance SolidityNode SolidityCode where
   getFunctionFromContract cn fn (SolidityCode u) = getFunctionFromContract cn fn u
   renameFunctionsWithinContract cn renaming (SolidityCode u) = SolidityCode $ renameFunctionsWithinContract cn renaming u
   addModifierToFunctionsWithinContract cn fn m (SolidityCode u) = SolidityCode $ addModifierToFunctionsWithinContract cn fn m u
+  addModifierToContractConstructor cn m (SolidityCode u) = SolidityCode $ addModifierToContractConstructor cn m u
 
   getModifierFromContract cn mn (SolidityCode u) = getModifierFromContract cn mn u
   renameModifiersWithinContract cn renaming (SolidityCode u) = SolidityCode $ renameModifiersWithinContract cn renaming u
@@ -264,7 +390,9 @@ instance SolidityNode SourceUnit where
   getFunctionFromContract cn fn (SourceUnit us) = msum $ map (getFunctionFromContract cn fn) us
   renameFunctionsWithinContract cn renaming (SourceUnit us) = SourceUnit $ map (renameFunctionsWithinContract cn renaming) us
   addModifierToFunctionsWithinContract cn fn m (SourceUnit us) = SourceUnit $ map (addModifierToFunctionsWithinContract cn fn m) us
+  addModifierToContractConstructor cn m (SourceUnit us) = SourceUnit $ map (addModifierToContractConstructor cn m) us
 
+  
   getModifierFromContract cn fn (SourceUnit us) = msum $ map (getModifierFromContract cn fn) us
   renameModifiersWithinContract cn renaming (SourceUnit us) = SourceUnit $ map (renameModifiersWithinContract cn renaming) us
 
@@ -297,6 +425,10 @@ instance SolidityNode SourceUnit1 where
     SourceUnit1_ContractDefinition $ addModifierToFunctionsWithinContract cn fn m c
   addModifierToFunctionsWithinContract _ _ _ u = u
 
+  addModifierToContractConstructor cn m (SourceUnit1_ContractDefinition c) =
+    SourceUnit1_ContractDefinition $ addModifierToContractConstructor cn m c
+  addModifierToContractConstructor _ _ u = u
+  
   getModifierFromContract cn fn (SourceUnit1_ContractDefinition c) = getModifierFromContract cn fn c
   getModifierFromContract _ _ _ = Nothing
 
@@ -346,6 +478,10 @@ instance SolidityNode ContractDefinition where
     c { contractParts = map (addModifierToFunctionsWithinContract cn fn m) (contractParts c) }
   addModifierToFunctionsWithinContract _ _ _ c = c
 
+  addModifierToContractConstructor cn m c | definitionType c == "contract" && definitionName c == cn =
+    c { contractParts = map (addModifierToContractConstructor cn m) (contractParts c) }
+  addModifierToContractConstructor _ _ c = c
+
   renameModifiersWithinContract cn renaming c
     | definitionType c == "contract" && definitionName c == cn =
       c { contractParts = map (renameModifiersWithinContract cn renaming) (contractParts c) }
@@ -394,6 +530,25 @@ instance SolidityNode ContractPart where
           modifierInvocationParameters = if null (unExpressionList es) then Nothing else Just es
         }
   addModifierToFunctionsWithinContract _ _ _ p = p
+
+  addModifierToContractConstructor _ (mn, es) (ContractPartConstructorDefinition pl ts b)
+     = ContractPartConstructorDefinition pl (t:ts) b
+    where
+      t = FunctionDefinitionTagModifierInvocation
+        ModifierInvocation {
+          modifierInvocationIdentifier = mn,
+          modifierInvocationParameters = if null (unExpressionList es) then Nothing else Just es
+        }
+
+  addModifierToContractConstructor cn (mn, es) (ContractPartFunctionDefinition (Just f) pl ts pl' b)
+    | cn == f = ContractPartFunctionDefinition (Just f) pl (t:ts) pl' b
+    where
+      t = FunctionDefinitionTagModifierInvocation
+        ModifierInvocation {
+          modifierInvocationIdentifier = mn,
+          modifierInvocationParameters = if null (unExpressionList es) then Nothing else Just es
+        }
+  addModifierToContractConstructor _ _ p = p
 
   getModifierFromContract _ mn m@(ContractPartModifierDefinition mn' _ _) | mn' == mn = Just m
   getModifierFromContract _ _ _ = Nothing
