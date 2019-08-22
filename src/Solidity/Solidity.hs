@@ -297,6 +297,7 @@ data Statement
   | SimpleStatementExpression Expression
   | SimpleStatementVariableList IdentifierList (Maybe Expression)
   | SimpleStatementVariableDeclaration VariableDeclaration (Maybe Expression)
+  | SimpleStatementVariableDeclarationList [VariableDeclaration] [Expression]
   deriving (Eq, Ord, Show)
 
 -------------------------------------------------------------------------------
