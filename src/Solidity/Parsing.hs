@@ -88,15 +88,77 @@ instance Parseable SourceUnit1 where
   display (SourceUnit1_PragmaDirective pragma_directive) = display pragma_directive
 
 -------------------------------------------------------------------------------
--- PragmaDirective = 'pragma' Identifier ([^;]+) ';'
--- Pragma actually parses anything up to the trailing ';' to be fully forward-compatible.
+-- data VersionComparator = Less | More | Equal | LessOrEqual | MoreOrEqual deriving (Show, Eq, Ord)
+
+instance Parseable VersionComparator where
+  parser = choice[
+                do 
+                  string ">"
+                  t <-  try(
+                          do string "="
+                             return MoreOrEqual
+                        ) <|> return More
+                  return t
+              , do
+                  string "<"
+                  t <- try(
+                          do string "="
+                             return LessOrEqual
+                        ) <|> return Less
+                  return t
+              , do
+                  char '^'
+                  return Equal
+            ]
+  display More = ">"
+  display Less = "<"
+  display MoreOrEqual = ">="
+  display LessOrEqual = "<="
+  display Equal = "^"
+  
+--  data Version = Version VersionComparator [Int] deriving (Show, Eq, Ord)
+
+instance Parseable Version where
+  parser = do 
+              c <- parser
+              version <- (many digit) `sepBy` (char '.')
+              return $ Version c (map (read :: [Char] -> Int) version)
+
+  display (Version c version) = (display c) ++ (intercalate "." [show n | n <- version]) 
+
+-- data PragmaDirective = SolidityPragmaConjunction [Version] 
+--                      | SolidityPragmaDisjunction [Version] 
+--                      | ExperimentalPragma String deriving (Show, Eq, Ord)
 
 instance Parseable PragmaDirective where
-  parser = PragmaDirective <$> (
-    pair <$>
-      (string "pragma" *> whitespace1 *> parser) <*> (whitespace1 *> manyTill anyChar (char ';'))
-    )
-  display (PragmaDirective (language, version)) = "pragma "++display language++" "++version++";"
+  parser = (string "pragma" *> whitespace1) *> 
+            (choice 
+            [   do 
+                  string "experimental"
+                  whitespace1
+                  t <-  manyTill anyChar (char ';')
+                  return $ ExperimentalPragma t
+              , do
+                  string "solidity"
+                  whitespace1
+                  r <- try(
+                              do 
+                                vs <- (whitespace1 *> parser <* whitespace1) `sepBy` (string "||")
+                                whitespace1 <* char ';'
+                                return $ SolidityPragmaDisjunction (vs)
+                          ) <|>
+                            ( do 
+                                vs <- (parser) `sepBy` (whitespace1)
+                                whitespace1 *> char ';'
+                                return $ SolidityPragmaConjunction vs
+                            
+                      )
+                  return r
+            ])
+    
+  display (SolidityPragmaConjunction versions) = "pragma solidity "++(intercalate " " (map display versions))++";"
+  display (SolidityPragmaDisjunction versions) = "pragma solidity "++(intercalate "||" (map display versions))++";"
+  display (ExperimentalPragma label) = "pragma experimental "++ (label)++";"
 
 
 -------------------------------------------------------------------------------
