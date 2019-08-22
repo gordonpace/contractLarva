@@ -30,73 +30,120 @@ import Solidity
 instrumentContractSpecification :: ContractSpecification -> Instrumentation
 instrumentContractSpecification monitor =
   -- (i)  Rename contract to LARVA_contract
-  renameContract (contract, contract') |>
+    renameContract (contract, contract') |>
+
+    --rename old constructor to new contractname if using old style constructor (will only have effect if this is present)
+    renameFunctionInContract contract' (contract, contract') |>
 
   -- (ii) Add LARVA_Status handlers
-  -- Add the modifier to check that the contract is enabled to all functions (except the old and new constructors)
-  addTopModifierToAllButTheseFunctionInContract
-    contract' [contract] (Identifier "LARVA_ContractIsEnabled", ExpressionList []) |>
-      -- Add the second modifier to the old constructor
-  addTopModifierToFunctionInContract
-    contract' contract (Identifier "LARVA_Constructor", ExpressionList []) |>
+
+    addContractParts contract' (
+      map parser'
+        [ 
+          -- Enumerated type to keep track whether contract is enabled or not.
+          "enum LARVA_STATUS { ENABLED, DISABLED }"
+          -- Functionality to enable and disable the original contract
+          , "function LARVA_EnableContract() private { LARVA_Status = LARVA_STATUS.ENABLED; }"
+          , "function LARVA_DisableContract() private { LARVA_Status = LARVA_STATUS.DISABLED; }"
+            -- Modifier to ensure that the contract has been enabled
+          , "modifier LARVA_ContractIsEnabled { require(LARVA_Status == LARVA_STATUS.ENABLED); _; }"
+        ]) |>  
+    
+    -- Add the modifier to check that the contract is enabled to all functions (except to any old style constructors)
+    addTopModifierToAllButTheseFunctionInContract
+    contract' [contract'] (Identifier "LARVA_ContractIsEnabled", ExpressionList []) |>
 
 
-  addContractParts contract' (
-    map parser'
-    [ -- Enumerated type to keep track whether contract is (i) not started (initially in ths state); (ii) ready
-      -- (after the contract has been enabled but the constructor not yet called); (iii) running (enabled and
-      -- constructor called); (iv) stopped (contract disabled after it was running).
-      "enum LARVA_STATUS { NOT_STARTED, READY, RUNNING, STOPPED }"
-      -- LARVA_status keeps track of the current status of the contract
-    , "LARVA_STATUS private LARVA_Status = LARVA_STATUS.NOT_STARTED;"
-      -- Functionality to enable and disable the original contract
-    , "function LARVA_EnableContract() private { LARVA_Status = (LARVA_Status == LARVA_STATUS.NOT_STARTED)?LARVA_STATUS.READY:LARVA_STATUS.RUNNING; }"
-    , "function LARVA_DisableContract() private { LARVA_Status = (LARVA_Status == LARVA_STATUS.READY)?LARVA_STATUS.NOT_STARTED:LARVA_STATUS.STOPPED; }"
-      -- Modifier to ensure that the contract has been enabled
-    , "modifier LARVA_ContractIsEnabled { require(LARVA_Status == LARVA_STATUS.RUNNING); _; }"
-      -- Modifier to be added to the old constructor to ensure tha it is ready to be called and to set the status
-      -- to running after terminating succesfully
-    , "modifier LARVA_Constructor { require(LARVA_Status == LARVA_STATUS.READY); LARVA_Status = LARVA_STATUS.RUNNING; _; }"
-    ]
-  ) |>
-   -- (iii) Add declarations, and constructor, reparation, satisfaction functions of new contract
-  addContractParts contract' (
-    [ (ContractPartFunctionDefinition
-        (Just contract') (ParameterList [])
-        [FunctionDefinitionTagPublic]
-        Nothing
-        (Just $ initialisation monitor)
+  -- (ii) Add monitor initialisation and enabling code
+
+    --If a constructor is not defined in the smart contract 
+    --  then if the monitor does not require any initialisation logic
+    --          then simply set the default value of the monitor flag (LARVA_Status) to enabled (avoiding the creation of a constructor),
+    --          otherwise create a new constructor in a style compatible with code's pragma version
+    --  otherwise do nothing
+    (\x -> if(not $ constructorIsDefinedInContract contract' x)
+              then (if initialisation monitor == Block []
+                    then addContractParts contract' 
+                          (map parser' [
+                            -- LARVA_status keeps track of the current status of the contract
+                            "LARVA_STATUS private LARVA_Status = LARVA_STATUS.ENABLED;"
+                          ]) x
+
+                    else if (useNewStyleConstructor x)
+                          then (addContractParts contract' 
+                                            [ (ContractPartConstructorDefinition
+                                                (ParameterList [])
+                                                [FunctionDefinitionTagPublic]
+                                                Nothing
+                                              )] x)
+                          else (addContractParts contract' 
+                                          [ (ContractPartFunctionDefinition
+                                              (Just contract') (ParameterList [])
+                                              [FunctionDefinitionTagPublic]
+                                              Nothing
+                                              Nothing
+                                            )] x)
+                    )
+              else x
+
+              
+    ) |>
+
+    --If a constructor is defined in the smart contract 
+    --   (we specify this case separately from the previous code since we want it to run in the case we are creating a constructor ourselves)
+    --  then set the default value of the monitor flag (LARVA_Status) to disabled and create a constructor modifier that initialises the monitor and enables it,
+    --  otherwise do nothing
+    (\x -> if constructorIsDefinedInContract contract' x
+            then (addContractParts contract' 
+                  (map parser' [
+                    -- LARVA_status keeps track of the current status of the contract
+                    "LARVA_STATUS private LARVA_Status = LARVA_STATUS.DISABLED;"
+                    -- Modifier to be added to the old constructor to initialise and start monitor on constructor running
+                    , "modifier LARVA_Constructor {"++(display $ initialisation monitor)++"LARVA_Status = LARVA_STATUS.ENABLED;\n_;}"
+                  ]) |>
+
+                  addTopModifierToContractConstructor
+                  contract' (Identifier "LARVA_Constructor", ExpressionList [])
+                  ) x
+            else x
       )
-    , (ContractPartFunctionDefinition
-        (Just $ Identifier "LARVA_reparation") (ParameterList [])
-        [FunctionDefinitionTagPrivate]
-        Nothing
-        (Just $ reparation monitor)
-      )
-    , (ContractPartFunctionDefinition
-        (Just $ Identifier "LARVA_satisfaction") (ParameterList [])
-        [FunctionDefinitionTagPrivate]
-        Nothing
-        (Just $ satisfaction monitor)
-      )
-    ] ++ declarations monitor
-  ) |>
+
+      |>
+
+
+
+  -- (iii) Add declarations, reparation, satisfaction functions of monitored contract
+    addContractParts contract' (
+      [(ContractPartFunctionDefinition
+          (Just $ Identifier "LARVA_reparation") (ParameterList [])
+          [FunctionDefinitionTagPrivate]
+          Nothing
+          (Just $ reparation monitor)
+        )
+      , (ContractPartFunctionDefinition
+          (Just $ Identifier "LARVA_satisfaction") (ParameterList [])
+          [FunctionDefinitionTagPrivate]
+          Nothing
+          (Just $ satisfaction monitor)
+        )
+      ] ++ declarations monitor
+    ) |>
 
   -- (iv) Add setters for relevant variables
-  foldl (.) id
-  [ defineAndUseSetterFunctionForVariableInContract contract' v
-        (Identifier ("LARVA_set_"++vn++"_pre"), Identifier ("LARVA_set_"++vn++"_post"))
-  | v <- getVariablesFromContractSpecification monitor
-  , let vn = display v
-  ] |>
+    foldl (.) id
+    [ defineAndUseSetterFunctionForVariableInContract contract' v
+          (Identifier ("LARVA_set_"++vn++"_pre"), Identifier ("LARVA_set_"++vn++"_post"))
+    | v <- getVariablesFromContractSpecification monitor
+    , let vn = display v
+    ] |>
 
   -- Start instrumenting the DEAs
   -- (v) Add variables to store state of each DEA: LARVA_STATE_n, all initialised to 0.
-  addContractParts contract'
-    [ parser' ("int8 "++larva_state_variable n++" = 0;") | n <- [1..deaCount] ] |>
+    addContractParts contract'
+      [ parser' ("int8 "++larva_state_variable n++" = 0;") | n <- [1..deaCount] ] |>
 
   -- (vi) Create modifiers to catch events and change state + attach modifiers to relevant functions
-  foldl (|>) id [ instrumentForDEA contract' (n,d) | (n,d) <- zip [1..] ds ]
+    foldl (|>) id [ instrumentForDEA contract' (n,d) | (n,d) <- zip [1..] ds ]
 
   where
     contract = contractName monitor
