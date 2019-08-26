@@ -943,9 +943,8 @@ instance Parseable HexLiteral where
 -- StringLiteral = '"' ([^"\r\n\\] | '\\' .)* '"'
 
 instance Parseable StringLiteral where
-  parser = StringLiteral . concat <$> (
-      char '"' *> manyTill character (char '"')
-    )
+  parser = StringLiteral . concat <$> (try (char '"' *> manyTill character (char '"'))
+                                       <|> (char '\'' *> manyTill character (char '\'')))
     where
       escape :: Parser String
       escape = list [char '\\', oneOf "\\\"0nrvtbf"] -- all the characters which can be escaped
