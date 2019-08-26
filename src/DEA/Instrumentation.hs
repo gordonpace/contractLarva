@@ -223,7 +223,7 @@ instrumentContractSpecification monitor =
 
               eventUntypedParameters = parametersPassed functionCall
               eventTypedParameters =
-                maybe Nothing (\ps -> Just (typeParameterList ps functionTypedParameters)) eventUntypedParameters
+                maybe Nothing (\ps -> Just (addMemoryLocationToParametersList $ typeParameterList ps functionTypedParameters)) eventUntypedParameters
 
               modifierName =  nameModifier e
           in  -- Add modifier to function
@@ -245,7 +245,7 @@ instrumentContractSpecification monitor =
 
               eventUntypedParameters = parametersPassed functionCall
               eventTypedParameters =
-                maybe Nothing (\ps -> Just (typeParameterList ps functionTypedParameters)) eventUntypedParameters
+                maybe Nothing (\ps -> Just (addMemoryLocationToParametersList $ typeParameterList ps functionTypedParameters)) eventUntypedParameters
 
               modifierName = nameModifier e
           in -- Add modifier to function

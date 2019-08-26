@@ -45,7 +45,7 @@ module Solidity.Solidity (
 
   FunctionName, VariableName, ContractName, ModifierName,
 
-  untypeParameterList, typeParameterList
+  untypeParameterList, typeParameterList, addMemoryLocationToParametersList
 ) where
 
 import Data.Maybe
@@ -484,5 +484,19 @@ typeParameterList (UntypedParameterList ups) (ParameterList tps) =
 untypeParameterList :: ParameterList -> UntypedParameterList
 untypeParameterList (ParameterList ps) = UntypedParameterList $ map (fromJust . parameterIdentifier) ps
 
+-- -------------------------------------------------------------------------------
+
+addMemoryLocationToListOfParameters :: [Parameter] -> [Parameter]
+addMemoryLocationToListOfParameters [] = []
+addMemoryLocationToListOfParameters ((Parameter (TypeNameArrayTypeName t e) Nothing id):rest) = let newRest = (addMemoryLocationToListOfParameters rest)
+                                                                                               in ((Parameter (TypeNameArrayTypeName t e) (Just Memory) id): newRest)
+addMemoryLocationToListOfParameters ((Parameter (TypeNameElementaryTypeName StringType) Nothing id):rest) = let newRest = (addMemoryLocationToListOfParameters rest)
+                                                                                                            in ((Parameter (TypeNameElementaryTypeName StringType) (Just Memory) id): newRest)
+addMemoryLocationToListOfParameters ((Parameter (TypeNameElementaryTypeName (BytesType no)) Nothing id):rest) = let newRest = (addMemoryLocationToListOfParameters rest)
+                                                                                                                in ((Parameter (TypeNameElementaryTypeName (BytesType no)) (Just Memory) id): newRest)
+addMemoryLocationToListOfParameters (x:rest) = let newRest = (addMemoryLocationToListOfParameters rest)
+                                                in (x:newRest)
 
 
+addMemoryLocationToParametersList :: ParameterList -> ParameterList
+addMemoryLocationToParametersList (ParameterList ps) = ParameterList (addMemoryLocationToListOfParameters ps)
