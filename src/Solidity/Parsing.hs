@@ -91,7 +91,7 @@ instance Parseable SourceUnit1 where
 -- data VersionComparator = Less | More | Equal | LessOrEqual | MoreOrEqual deriving (Show, Eq, Ord)
 
 instance Parseable VersionComparator where
-  parser = choice[
+  parser = try $ choice[
                 do 
                   string ">"
                   t <-  try(
@@ -110,6 +110,7 @@ instance Parseable VersionComparator where
                   char '^'
                   return Equal
             ]
+            <|> return Equal
   display More = ">"
   display Less = "<"
   display MoreOrEqual = ">="
