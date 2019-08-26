@@ -1028,8 +1028,7 @@ instance Parseable ElementaryTypeName where
   display (UfixedType (Just (d1,d2))) = "ufixed"++show d1++"x"++show d2
 
   parser = choice
-    [ const AddressPayableType <$> keyword "address" <* whitespace <* keyword "payable"
-    , const AddressType <$> keyword "address"
+    [ try (const AddressPayableType <$> keyword "address" <* whitespace <* keyword "payable") <|> const AddressType <$> keyword "address"
     , const StringType <$> keyword "string"
     , const VarType <$> keyword "var"
     , IntType <$> (string "int" *> parseIntSize)
