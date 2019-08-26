@@ -447,6 +447,7 @@ instance Parseable ParameterList where
 instance Parseable Parameter where
   display p =
     display (parameterType p) ++
+    maybe "" _display (parameterStorageLocation p) ++
     maybe "" _display (parameterIdentifier p)
   parser =
     do
