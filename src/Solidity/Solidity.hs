@@ -278,6 +278,7 @@ newtype Block = Block [Statement] deriving (Eq, Ord, Show)
 -- Break = 'break'
 -- Return = 'return' Expression?
 -- Throw = 'throw'
+-- EmitStatement = 'emit' Expression
 -- SimpleStatement =
 --    Expression | ('var' IdentifierList ( '=' Expression ) | VariableDeclaration ( '=' Expression )?
 data Statement
@@ -293,6 +294,7 @@ data Statement
   | Break
   | Return (Maybe Expression)
   | Throw
+  | EmitStatement Expression
 
   | SimpleStatementExpression Expression
   | SimpleStatementVariableList IdentifierList (Maybe Expression)
