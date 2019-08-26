@@ -285,8 +285,7 @@ instance Parseable ContractPart where
         b <- ((const Nothing <$> char ';') <|> (Just <$> parser))
         return (ContractPartFunctionDefinition mi ps ts mps' b)
     , do
-        keyword "constructor"
-        ps <- parser <* whitespace
+        ps <- keyword "constructor" *> whitespace *> parser <* whitespace
         ts <- many (parser <* whitespace)
         b <- ((const Nothing <$> char ';') <|> (Just <$> parser))
         return (ContractPartConstructorDefinition ps ts b)
