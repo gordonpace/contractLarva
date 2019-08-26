@@ -149,7 +149,7 @@ instance Parseable PragmaDirective where
                                 return $ SolidityPragmaDisjunction (vs)
                           ) <|>
                             ( do 
-                                vs <- (parser) `sepBy` (whitespace1)
+                                vs <- (parser) `sepBy` (char ' ' *> whitespace)
                                 whitespace1 *> char ';'
                                 return $ SolidityPragmaConjunction vs
                             
