@@ -198,12 +198,13 @@ data IndexedParameter = IndexedParameter {
 newtype UntypedParameterList = UntypedParameterList { fromUntypedParameterList :: [Identifier] } deriving (Eq, Ord, Show)
 
 -------------------------------------------------------------------------------
--- ParameterList = '(' ( TypeName Identifier? (',' TypeName Identifier?)* )? ')'
+-- ParameterList = '(' ( TypeName StorageLocation? Identifier? (',' TypeName StorageLocation? Identifier?)* )? ')'
 
 newtype ParameterList = ParameterList [Parameter] deriving (Eq, Ord, Show)
 
 data Parameter = Parameter {
     parameterType :: TypeName,
+    parameterStorageLocation :: Maybe StorageLocation,
     parameterIdentifier :: Maybe Identifier
   } deriving (Show, Eq, Ord)
 
@@ -474,6 +475,7 @@ typeParameterList (UntypedParameterList ups) (ParameterList tps) =
       repeat (
         Parameter {
           parameterType = TypeNameUserDefinedTypeName (UserDefinedTypeName [Identifier "undefined"]),
+          parameterStorageLocation = Nothing,
           parameterIdentifier = Just (Identifier "undefined")
         }
       )

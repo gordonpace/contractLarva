@@ -451,9 +451,11 @@ instance Parseable Parameter where
   parser =
     do
       paramType <- parser <* whitespace
+      storageLocation <- (try (Just <$> parser) <|> return Nothing) <* whitespace
       identifier <- try (Just <$> parser) <|> return Nothing
       return Parameter {
         parameterType = paramType,
+        parameterStorageLocation = storageLocation,
         parameterIdentifier = identifier
       }
 
