@@ -607,6 +607,7 @@ instance Parseable Block where
 -- Break = 'break'
 -- Return = 'return' Expression?
 -- Throw = 'throw'
+-- EmitStatement = 'emit' Expression
 -- SimpleStatement =
 --    Expression | ('var' IdentifierList ( '=' Expression ) | VariableDeclaration ( '=' Expression )?
 
@@ -628,6 +629,7 @@ instance Parseable Statement where
   display Break = "break;"
   display (Return me) = "return"++maybe "" (\e -> " "++display e) me++";"
   display Throw = "throw;"
+  display (EmitStatement exp) = "emit "++(display exp)++";"
 
   display (SimpleStatementExpression e) = display e++";"
   display (SimpleStatementVariableList il me) = "var " ++ display il ++ maybe "" (\e -> " = "++display e) me++";"
@@ -644,6 +646,7 @@ instance Parseable Statement where
       , const Continue <$> (keyword "continue" <* whitespace <* char ';')
       , const Break <$> (keyword "break" <* whitespace <* char ';')
       , const Throw <$> (keyword "throw" <* whitespace <* char ';')
+      , EmitStatement <$> (keyword "emit" *> whitespace *> parser <* whitespace <* char ';')
       , Return <$> (keyword "return" *> whitespace *> ((Just <$> parser) <|> return Nothing) <* whitespace <* char ';')
       , do
           c <- keyword "if" *> whitespace *> char '(' *> whitespace *> parser <* whitespace <* char ')' <* whitespace
