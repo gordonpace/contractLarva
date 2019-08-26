@@ -227,8 +227,9 @@ oldStyleConstructorUsed :: ContractName -> SolidityCode -> Bool
 oldStyleConstructorUsed cn code = functionIsDefinedInContract cn cn code
 
 newStyleConstructorUsed :: ContractName -> SolidityCode -> Bool
-newStyleConstructorUsed cn code = let Just c = getContract cn code
-                                    in  not $ null [ "" |  ContractPartConstructorDefinition _ _ _ <- contractParts c]
+newStyleConstructorUsed cn code = case getContract cn code of
+                                    Just c -> not $ null [ "" |  ContractPartConstructorDefinition _ _ _ <- contractParts c]
+                                    Nothing -> False
 
 -- PARSING STUFF LOCALLY
 
