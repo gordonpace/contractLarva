@@ -429,7 +429,7 @@ type ElementaryTypeNameExpression = ElementaryTypeName
 -- Ufixed = 'ufixed' | ( 'ufixed' DecimalNumber 'x' DecimalNumber )
 
 data ElementaryTypeName
-  = AddressType | BoolType | StringType | VarType
+  = AddressPayableType | AddressType | BoolType | StringType | VarType
   | IntType (Maybe Integer) | UintType (Maybe Integer) | BytesType (Maybe Integer)
   | ByteType | FixedType (Maybe (Integer, Integer)) | UfixedType (Maybe (Integer, Integer))
   deriving (Eq, Ord, Show)

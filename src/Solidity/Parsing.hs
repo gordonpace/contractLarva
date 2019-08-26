@@ -1005,6 +1005,7 @@ type ElementaryTypeNameExpression = ElementaryTypeName
 -- Ufixed = 'ufixed' | ( 'ufixed' DecimalNumber 'x' DecimalNumber )
 
 instance Parseable ElementaryTypeName where
+  display AddressPayableType = "address payable"
   display AddressType = "address"
   display BoolType = "bool"
   display StringType = "string"
@@ -1022,7 +1023,8 @@ instance Parseable ElementaryTypeName where
   display (UfixedType (Just (d1,d2))) = "ufixed"++show d1++"x"++show d2
 
   parser = choice
-    [ const AddressType <$> keyword "address"
+    [ const AddressPayableType <$> keyword "address" <* whitespace <* keyword "payable"
+    , const AddressType <$> keyword "address"
     , const StringType <$> keyword "string"
     , const VarType <$> keyword "var"
     , IntType <$> (string "int" *> parseIntSize)
