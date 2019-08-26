@@ -167,7 +167,7 @@ instance Parseable PragmaDirective where
 --         | 'import' '{' Identifier ('as' Identifier)? ( ',' Identifier ('as' Identifier)? )* '}' 'from' StringLiteral ';'
 
 instance Parseable ImportDirective where
-  parser = keyword "import" *> whitespace1 *> choice [directive1, directive2, directive3]
+  parser = keyword "import" *> whitespace1 *> choice [directive1, directive2, directive3] <* whitespace <* char ';'
     where
       parseIdentifierOrStar :: Parser Import
       parseIdentifierOrStar = (const ImportAll <$> char '*') <|> (ImportId <$> parser)
