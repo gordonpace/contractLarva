@@ -46,7 +46,7 @@ pair x y = (x,y)
 comment :: Parser ()
 comment =
   try (string "//" *> manyTill anyChar (eof <|> (newline *> return ())) *> return ()) <|>
-  (string "/*" *> manyTill anyChar (string "*/") *> return ())
+  (string "/*" *> manyTill anyChar (try $ string "*/") *> return ())
 
 whitespace, whitespace1 :: Parser ()
 whitespace  = const () <$> many (try comment <|> (const () <$> space))
