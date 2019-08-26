@@ -546,7 +546,10 @@ instance Parseable UserDefinedTypeName where
 instance Parseable StorageLocation where
   display Memory = "memory"
   display Storage = "storage"
-  parser = (const Memory <$> keyword "memory") <|> (const Storage <$> keyword "storage")
+  display CallData = "calldata"
+  parser = (const Memory <$> keyword "memory") 
+       <|> (const Storage <$> keyword "storage") 
+       <|> (const Storage <$> keyword "calldata")
 
 -------------------------------------------------------------------------------
 -- StateMutability = 'internal' | 'external' | 'pure' | 'constant' | 'view' | 'payable'

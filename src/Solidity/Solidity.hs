@@ -243,9 +243,9 @@ data TypeName
 data UserDefinedTypeName = UserDefinedTypeName [Identifier] deriving (Eq, Ord, Show)
 
 -------------------------------------------------------------------------------
--- StorageLocation = 'memory' | 'storage'
+-- StorageLocation = 'memory' | 'storage' | 'calldata'
 
-data StorageLocation = Memory | Storage deriving (Show, Eq, Ord)
+data StorageLocation = Memory | Storage | CallData deriving (Show, Eq, Ord)
 
 -------------------------------------------------------------------------------
 -- StateMutability = 'internal' | 'external' | 'pure' | 'constant' | 'view' | 'payable'
