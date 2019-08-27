@@ -301,6 +301,7 @@ data Statement
   | SimpleStatementVariableList IdentifierList (Maybe Expression)
  -- | SimpleStatementVariableDeclaration VariableDeclaration (Maybe Expression)
   | SimpleStatementVariableDeclarationList [Maybe VariableDeclaration] [Expression]
+  | SimpleStatementVariableAssignmentList [Maybe Identifier] [Expression]
   deriving (Eq, Ord, Show)
 
 -------------------------------------------------------------------------------
