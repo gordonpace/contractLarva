@@ -632,6 +632,11 @@ instance Parseable Statement where
   display (SimpleStatementVariableDeclarationList [v] [d]) = display v ++ " = " ++ display d ++";"
   display (SimpleStatementVariableDeclarationList vs []) = "(" ++ intercalate ", " (map display vs) ++ ")" ++";"
   display (SimpleStatementVariableDeclarationList vs me) = "(" ++ intercalate ", " (map display vs) ++ ")" ++ " = " ++ "(" ++ intercalate ", " (map display me) ++ ")" ++";"
+  
+  display (SimpleStatementVariableAssignmentList [v] []) = display v ++";"
+  display (SimpleStatementVariableAssignmentList [v] [d]) = display v ++ " = " ++ display d ++";"
+  display (SimpleStatementVariableAssignmentList vs []) = "(" ++ intercalate ", " (map display vs) ++ ")" ++";"
+  display (SimpleStatementVariableAssignmentList vs me) = "(" ++ intercalate ", " (map display vs) ++ ")" ++ " = " ++ "(" ++ intercalate ", " (map display me) ++ ")" ++";"
 
   parser =
     try (choice
@@ -715,6 +720,26 @@ instance Parseable Statement where
                           return mes)
                   <|> return [] <$> whitespace <* char ';'
             return (SimpleStatementVariableDeclarationList vd r)
+          )
+        <|>
+        try (
+          do
+            optional (char '(') <* whitespace
+            vd <- commaSep1 (try (Just <$> whitespace *> parser <* whitespace) <|> (char ' ' *> whitespace *> return Nothing))
+            optional (char ')') <* whitespace
+            r <- try( do char '=' <* whitespace
+                         me <- (whitespace *> parser <* whitespace)
+                         whitespace <* char ';'
+                         return [me])
+                  <|>
+                  try( do char '=' <* whitespace
+                          optional (char '(') 
+                          mes <- try (commaSep1 (whitespace *> parser <* whitespace)) <|> return [] 
+                          optional (char ')')
+                          whitespace <* char ';'
+                          return mes)
+                  <|> return [] <$> whitespace <* char ';'
+            return (SimpleStatementVariableAssignmentList vd r)
           )
         <|>
         SimpleStatementExpression <$> parser <* whitespace <* char ';'

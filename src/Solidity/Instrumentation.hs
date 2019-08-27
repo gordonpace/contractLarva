@@ -607,6 +607,8 @@ instance SolidityNode Statement where
     SimpleStatementExpression $ useSetterForVariableInContract cn vn fns e
   useSetterForVariableInContract cn vn fns (SimpleStatementVariableDeclarationList vds es) =
     SimpleStatementVariableDeclarationList vds (useSetterForVariableInContract cn vn fns <$> es)
+  useSetterForVariableInContract cn vn fns (SimpleStatementVariableAssignmentList ids es) =
+    SimpleStatementVariableAssignmentList ids (useSetterForVariableInContract cn vn fns <$> es)
   useSetterForVariableInContract cn vn fns (SimpleStatementVariableList il e) =
     SimpleStatementVariableList il (useSetterForVariableInContract cn vn fns <$> e)
   useSetterForVariableInContract _ _ _ s = s
