@@ -953,10 +953,10 @@ instance Parseable StringLiteral where
                                        <|> (char '\'' *> manyTill character (char '\'')))
     where
       escape :: Parser String
-      escape = list [char '\\', oneOf "\\\"0nrvtbf"] -- all the characters which can be escaped
+      escape = list [char '\\', oneOf ['\\','\"','0','n','r','v','t','b','f','x','u']] -- all the characters which can be escaped
 
       nonEscape :: Parser Char
-      nonEscape = noneOf "\\\"\0\n\r\v\t\b\f"
+      nonEscape = noneOf ['\\','\"','\0','\n','\r','\v','\t','\b','\f']
 
       character :: Parser String
       character = try (return <$> nonEscape) <|> escape
@@ -965,8 +965,8 @@ instance Parseable StringLiteral where
       addEscapes = concatMap addEscape
       addEscape '\n' = "\\n"
       addEscape '\0' = "\\0"
-      addEscape '\\' = "\\\\"
-      addEscape '"' = "\\"
+    --  addEscape '\\' = "\\\\"
+      addEscape '"' = "\""
       addEscape '\r' = "\\r"
       addEscape '\v' = "\\v"
       addEscape '\t' = "\\t"
