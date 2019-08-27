@@ -298,8 +298,8 @@ data Statement
 
   | SimpleStatementExpression Expression
   | SimpleStatementVariableList IdentifierList (Maybe Expression)
-  | SimpleStatementVariableDeclaration VariableDeclaration (Maybe Expression)
-  | SimpleStatementVariableDeclarationList [VariableDeclaration] [Expression]
+ -- | SimpleStatementVariableDeclaration VariableDeclaration (Maybe Expression)
+  | SimpleStatementVariableDeclarationList [Maybe VariableDeclaration] [Expression]
   deriving (Eq, Ord, Show)
 
 -------------------------------------------------------------------------------

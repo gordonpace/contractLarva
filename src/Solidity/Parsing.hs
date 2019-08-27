@@ -627,8 +627,11 @@ instance Parseable Statement where
 
   display (SimpleStatementExpression e) = display e++";"
   display (SimpleStatementVariableList il me) = "var " ++ display il ++ maybe "" (\e -> " = "++display e) me++";"
-  display (SimpleStatementVariableDeclaration v me) = display v ++ maybe "" (\e -> " = "++display e) me ++";"
-  display (SimpleStatementVariableDeclarationList v me) = "(" ++ intercalate "," (map display v) ++ ")" ++ "(" ++ intercalate "," (map display me) ++ ")" ++";"
+  -- display (SimpleStatementVariableDeclaration v me) = display v ++ maybe "" (\e -> " = "++display e) me ++";"
+  display (SimpleStatementVariableDeclarationList [v] []) = display v ++";"
+  display (SimpleStatementVariableDeclarationList [v] [d]) = display v ++ " = " ++ display d ++";"
+  display (SimpleStatementVariableDeclarationList vs []) = "(" ++ intercalate ", " (map display vs) ++ ")" ++";"
+  display (SimpleStatementVariableDeclarationList vs me) = "(" ++ intercalate ", " (map display vs) ++ ")" ++ " = " ++ "(" ++ intercalate ", " (map display me) ++ ")" ++";"
 
   parser =
     try (choice
@@ -675,26 +678,43 @@ instance Parseable Statement where
             return (SimpleStatementVariableList il me)
           )
         <|>
+        -- try (
+        --   do
+        --     vd <- try (char '(' *> whitespace *> parser <* whitespace <* char ')') <|> parser
+        --     whitespace
+        --     me <- try (Just <$> (char '=' *> whitespace *> parser)) <|> return Nothing
+        --     _  <- whitespace *> char ';'
+        --     return (SimpleStatementVariableDeclaration vd me)
+        --   )
+        -- <|>
         try (
           do
-            vd <- try (char '(' *> whitespace *> parser <* whitespace <* char ')') <|> parser
+            char '('
             whitespace
-            me <- try (Just <$> (char '=' *> whitespace *> parser)) <|> return Nothing
-            _  <- whitespace *> char ';'
-            return (SimpleStatementVariableDeclaration vd me)
+            char ')'
+            whitespace
+            char ';'
+            return (SimpleStatementVariableDeclarationList [] [])
           )
         <|>
         try (
           do
-            char '(' <* whitespace
-            vd <- commaSep1 (whitespace *> parser <* whitespace) 
-            char ')' <* whitespace
-            char '=' <* whitespace
-            char '(' <* whitespace
-            me <- commaSep1 (whitespace *> parser <* whitespace) 
-            char ')'
-            whitespace <* char ';'
-            return (SimpleStatementVariableDeclarationList vd me)
+            optional (char '(') <* whitespace
+            vd <- commaSep1 (try (Just <$> whitespace *> parser <* whitespace) <|> (char ' ' *> whitespace *> return Nothing))
+            optional (char ')') <* whitespace
+            r <- try( do char '=' <* whitespace
+                         me <- (whitespace *> parser <* whitespace)
+                         whitespace <* char ';'
+                         return [me])
+                  <|>
+                  try( do char '=' <* whitespace
+                          optional (char '(') 
+                          mes <- try (commaSep1 (whitespace *> parser <* whitespace)) <|> return [] 
+                          optional (char ')')
+                          whitespace <* char ';'
+                          return mes)
+                  <|> return [] <$> whitespace <* char ';'
+            return (SimpleStatementVariableDeclarationList vd r)
           )
         <|>
         SimpleStatementExpression <$> parser <* whitespace <* char ';'
