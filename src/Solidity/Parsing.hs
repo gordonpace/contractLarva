@@ -612,7 +612,7 @@ instance Parseable Block where
 --    Expression | ('var' IdentifierList ( '=' Expression ) | VariableDeclaration ( '=' Expression )?
 
 instance Parseable Statement where
-  display (IfStatement e t me) = "if ("++display e++") "++display t++maybe "" (\s -> " else "++display s) me
+  display (IfStatement e t me) = "if ("++display e++") "++display t++maybe "" (\s -> if s /= BlockStatement (Block []) then " else "++display s else "") me
   display (WhileStatement e s) = "while (" ++ display e++") "++display s
   display (InlineAssemblyStatement ms b) = "assembly "++maybe " " (\s -> display s++" ") ms++display b
   display (ForStatement (ms, me1, me2) s) =
