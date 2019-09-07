@@ -1,6 +1,7 @@
 # contractLarva: Runtime Verification of Solidity Smart Contracts
 Gordon J. Pace &lt;gordon.pace@um.edu.mt&gt;  
 Joshua Ellul &lt;joshua.ellul@um.edu.mt&gt;
+Shaun Azzopardi &lt;shaun.azzopardi@um.edu.mt&gt;
 
 ## Overview
 
