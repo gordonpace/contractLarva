@@ -24,7 +24,7 @@ module Solidity.Instrumentation (
   addGlobalVariableDeclarationToContract, addModifierDefinitionToContract,
   addFunctionDefinitionToContract, addTypeDefinitionToContract,
 
-  renameContract,
+  renameContract, renameConstructorInContract,
   renameFunctionInContract, renameFunctionsInContract,
   renameModifierInContract, renameModifiersInContract,
 
@@ -330,6 +330,7 @@ class SolidityNode a where
   updateContract :: Identifier -> (ContractDefinition -> ContractDefinition) -> a -> a
 
   getFunctionFromContract :: Identifier -> Identifier -> a -> Maybe ContractPart
+  renameConstructorInContract :: Identifier -> Identifier -> a -> a
   renameFunctionsWithinContract :: Identifier -> (Identifier -> Identifier) -> a -> a
   addModifierToFunctionsWithinContract :: Identifier -> (Identifier -> Bool) -> (Identifier, ExpressionList) -> a -> a
   addModifierToContractConstructor :: Identifier -> (Identifier, ExpressionList) -> a -> a
@@ -350,8 +351,10 @@ class SolidityNode a where
   updateContract _ _ = id
 
   getFunctionFromContract _ _ _ = Nothing
+  renameConstructorInContract _ _ = id
   renameFunctionsWithinContract _ _ = id
   addModifierToFunctionsWithinContract _ _ _ = id
+  addModifierToContractConstructor _ _ = id
 
   getModifierFromContract _ _ _ = Nothing
   renameModifiersWithinContract _ _ = id
@@ -364,8 +367,9 @@ instance SolidityNode SolidityCode where
   getContract cn (SolidityCode u) = getContract cn u
   renameContract cc' (SolidityCode u) = SolidityCode $ renameContract cc' u
   updateContract cn update (SolidityCode u) = SolidityCode (updateContract cn update u)
-
+  
   getFunctionFromContract cn fn (SolidityCode u) = getFunctionFromContract cn fn u
+  renameConstructorInContract cn newName (SolidityCode u) = SolidityCode $ renameConstructorInContract cn newName u
   renameFunctionsWithinContract cn renaming (SolidityCode u) = SolidityCode $ renameFunctionsWithinContract cn renaming u
   addModifierToFunctionsWithinContract cn fn m (SolidityCode u) = SolidityCode $ addModifierToFunctionsWithinContract cn fn m u
   addModifierToContractConstructor cn m (SolidityCode u) = SolidityCode $ addModifierToContractConstructor cn m u
@@ -389,6 +393,7 @@ instance SolidityNode SourceUnit where
   updateContract cn update (SourceUnit us) = SourceUnit (map (updateContract cn update) us)
 
   getFunctionFromContract cn fn (SourceUnit us) = msum $ map (getFunctionFromContract cn fn) us
+  renameConstructorInContract cn newName (SourceUnit us) = SourceUnit $ map (renameConstructorInContract cn newName) us
   renameFunctionsWithinContract cn renaming (SourceUnit us) = SourceUnit $ map (renameFunctionsWithinContract cn renaming) us
   addModifierToFunctionsWithinContract cn fn m (SourceUnit us) = SourceUnit $ map (addModifierToFunctionsWithinContract cn fn m) us
   addModifierToContractConstructor cn m (SourceUnit us) = SourceUnit $ map (addModifierToContractConstructor cn m) us
@@ -417,6 +422,11 @@ instance SolidityNode SourceUnit1 where
 
   getFunctionFromContract cn fn (SourceUnit1_ContractDefinition c) = getFunctionFromContract cn fn c
   getFunctionFromContract _ _ _ = Nothing
+
+
+  renameConstructorInContract cn newName (SourceUnit1_ContractDefinition c) =
+    SourceUnit1_ContractDefinition $ renameConstructorInContract cn newName c
+  renameConstructorInContract _ _ c = c
 
   renameFunctionsWithinContract cn renaming (SourceUnit1_ContractDefinition c) =
     SourceUnit1_ContractDefinition $ renameFunctionsWithinContract cn renaming c
@@ -465,6 +475,11 @@ instance SolidityNode ContractDefinition where
   updateContract contractName updateFunction c
     | definitionType c == "contract" && definitionName c == contractName = updateFunction c
   updateContract _ _ c = c
+
+  renameConstructorInContract cn newName c
+    | definitionType c == "contract" && definitionName c == cn =
+      c { contractParts = map (renameConstructorInContract cn newName) (contractParts c) }
+  renameConstructorInContract _ _ c = c
 
   renameFunctionsWithinContract cn renaming c
     | definitionType c == "contract" && definitionName c == cn =
@@ -517,6 +532,10 @@ instance SolidityNode ContractPart where
 
   getFunctionFromContract _ fn f@(ContractPartFunctionDefinition (Just fn') _ _ _ _) | fn' == fn = Just f
   getFunctionFromContract _ _ _ = Nothing
+
+  renameConstructorInContract _ newName (ContractPartConstructorDefinition ps ts b) =
+    ContractPartFunctionDefinition (Just (newName)) ps ts Nothing b
+  renameConstructorInContract _ _ cp = cp
 
   renameFunctionsWithinContract _ renaming (ContractPartFunctionDefinition (Just fn) ps ts rs b) =
     ContractPartFunctionDefinition (Just (renaming fn)) ps ts rs b
