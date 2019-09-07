@@ -32,7 +32,7 @@ module Solidity.Instrumentation (
   addTopModifierToFunctionsInContract,
   addTopModifierToAllButTheseFunctionInContract,
 
-  functionIsPublicInContract,
+  functionIsPublicInContract, functionIsDefinedInContract,
   defineAndUseSetterFunctionForVariableInContract,
 
   variableIsDefinedInContract, variableIsPublicInContract, getVariableTypeInContract,

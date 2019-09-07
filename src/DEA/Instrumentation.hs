@@ -131,21 +131,25 @@ instrumentContractSpecification monitor =
                     )
     ) |>
 
-  -- (iv) Add declarations, reparation, satisfaction functions of monitored contract
+  -- (iv) Add reparation and satisfaction functions if they are not empty and there are respectively bad and acceptance states,
+  --       and the declaration code of monitored contract
     addContractParts contract' (
-      [(ContractPartFunctionDefinition
-          (Just $ Identifier "LARVA_reparation") (ParameterList [])
-          [FunctionDefinitionTagPrivate]
-          Nothing
-          (Just $ reparation monitor)
-        )
-      , (ContractPartFunctionDefinition
-          (Just $ Identifier "LARVA_satisfaction") (ParameterList [])
-          [FunctionDefinitionTagPrivate]
-          Nothing
-          (Just $ satisfaction monitor)
-        )
-      ] ++ declarations monitor
+      (if reparation monitor /= Block [] && [s | dea <- deas monitor, s <- badStates dea] /= []
+          then  [(ContractPartFunctionDefinition
+                  (Just $ Identifier "LARVA_reparation") (ParameterList [])
+                  [FunctionDefinitionTagPrivate]
+                  Nothing
+                  (Just $ reparation monitor)
+                )]
+          else []) ++
+      (if satisfaction monitor /= Block [] && [s | dea <- deas monitor, s <- acceptanceStates dea] /= []
+          then  [(ContractPartFunctionDefinition
+                  (Just $ Identifier "LARVA_satisfaction") (ParameterList [])
+                  [FunctionDefinitionTagPrivate]
+                  Nothing
+                  (Just $ satisfaction monitor)
+                )]
+          else []) ++ declarations monitor
     ) |>
 
   -- (v) Add setters for relevant variables
@@ -193,8 +197,8 @@ instrumentContractSpecification monitor =
         sameEvent (VariableAssignment v _) (VariableAssignment v' _) = v==v'
         sameEvent _ _ = False
 
-        modifierCode :: String -> Maybe ParameterList -> Bool -> [Transition] -> String
-        modifierCode modifierName mps before ts =
+        modifierCode :: SolidityCode -> ContractName -> String -> Maybe ParameterList -> Bool -> [Transition] -> String
+        modifierCode code contract modifierName mps before ts =
           unlines $
             [ "modifier "++modifierName++maybe "" display mps++" {"] ++
             (if before then [] else ["_;"]) ++
@@ -205,8 +209,8 @@ instrumentContractSpecification monitor =
               display (action gcl)++reparationCode++satisfactionCode++"} else {"
             | t <- ts, let gcl = label t
             , let condition = variableAssignmentExpression gcl
-            , let reparationCode = if dst t `elem` badStates dea then " LARVA_reparation(); " else ""
-            , let satisfactionCode = if dst t `elem` acceptanceStates dea then " LARVA_satisfaction(); " else ""
+            , let reparationCode = if dst t `elem` badStates dea && functionIsDefinedInContract contract (Identifier "LARVA_reparation") code then " LARVA_reparation(); " else ""
+            , let satisfactionCode = if dst t `elem` acceptanceStates dea && functionIsDefinedInContract contract (Identifier "LARVA_satisfaction") code then " LARVA_satisfaction(); " else ""
             ] ++
             [ "   "++ replicate (length ts) '}' ] ++
             (if before then ["_;"] else []) ++
@@ -249,7 +253,7 @@ instrumentContractSpecification monitor =
               addTopModifierToFunctionInContract contractName function
                 (Identifier modifierName, functionParameters) |> (
               -- Define modifier to trigger transitions
-              addContractPart contractName $ parser' $ modifierCode modifierName eventTypedParameters True ts
+              (\x -> (addContractPart contractName $ parser' $ modifierCode x contractName modifierName eventTypedParameters True ts) x)
               )
         instrumentForEvent (e@(UponExit functionCall), ts) =
           let function = functionName functionCall
@@ -271,12 +275,12 @@ instrumentContractSpecification monitor =
              addTopModifierToFunctionInContract contractName function
                (Identifier modifierName, functionParameters) |> (
              -- Define modifier to trigger transitions
-             addContractPart contractName $ parser' $ modifierCode modifierName eventTypedParameters True ts
+             (\x -> (addContractPart contractName $ parser' $ modifierCode x contractName modifierName eventTypedParameters True ts) x)
              )
         instrumentForEvent (e@(VariableAssignment variableName _), ts) =
           let modifierName =  nameModifier e
           in  -- Define modifier to trigger transitions
-              (addContractPart contractName $ parser' $ modifierCode modifierName Nothing False ts) |>
+              (\x -> (addContractPart contractName $ parser' $ modifierCode x contractName modifierName Nothing False ts) x)|>
               -- Add modifier to setter functions
               addTopModifierToFunctionsInContract contractName
                 [ Identifier ("LARVA_set_"++display variableName++"_pre")
