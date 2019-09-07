@@ -1,0 +1,47 @@
+monitor MonitorToContractName{
+    declarations{
+        // declare any global variables and functions  
+    }
+
+    initialisation{
+        // put here any code that you want to act as the constructor of the monitored contract
+        // if you use this code block remember to allow the smart contract to be enabled by calling LARVA_EnableContract() here or through some additional logic declared in the <declarations> block
+    }
+
+    reparation{
+        // enter here any code that you want executed upon a bad state of the monitor being reached
+    }
+
+    satisfaction{
+        // enter here any code that you want executed upon an accepting state of the monitor being reached
+    }
+
+
+    DEA MonitorName1{
+        states{
+            // here declare any states you wish to use in your monitor here
+            // in the following format: <stateName> (: (initial|bad|accept))?;
+            // e.g. the following is a valid state list:
+            // 
+            //      0: initial;
+            //      1;
+            //      2;
+            //      bad: bad;
+            //      accepting: accept;
+        }
+
+        transitions{
+            // here declare the transitions you wish the monitor to trigger, conditional on an event and the state of the smart contract, and possibly transforming the same state
+            // in the following format: <stateName> -[(before|after)\(<solidityFunctionCall>\) | <solidityBooleanExpression> ~> <solidityStatement> ]-> <stateName>;
+            // e.g. the following is a valud transition:
+            //  0 -[after(functionA()) | count == 5 ~>  count++]-> 1;
+        }
+    }
+
+    DEA MonitorName2{
+        // ...
+    }
+
+    //Hint: multiple DEA monitors can be declared in the same file, which will be wrapped around the same smart contract
+
+}
