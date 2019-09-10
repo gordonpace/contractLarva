@@ -42,7 +42,9 @@ instrumentContractSpecification monitor =
           -- Functionality to enable and disable the original contract
           , "function LARVA_EnableContract() private { LARVA_Status = (LARVA_Status == LARVA_STATUS.NOT_STARTED)?LARVA_STATUS.READY:LARVA_STATUS.RUNNING; }"
           , "function LARVA_DisableContract() private { LARVA_Status = (LARVA_Status == LARVA_STATUS.READY)?LARVA_STATUS.NOT_STARTED:LARVA_STATUS.STOPPED; }"
-            -- Modifier to ensure that the contract has been enabled
+          -- LARVA_status keeps track of the current status of the contract
+          ,"LARVA_STATUS private LARVA_Status = LARVA_STATUS.NOT_STARTED;"
+          -- Modifier to ensure that the contract has been enabled
           , "modifier LARVA_ContractIsEnabled { require(LARVA_Status == LARVA_STATUS.RUNNING); _; }"        ]) |>  
     
     -- Add the modifier to check that the contract is enabled to all functions (except to any old style constructors)
@@ -51,32 +53,28 @@ instrumentContractSpecification monitor =
 
   --(iii) Deal with monitor constructors and status of monitor
 
-      --If there is no initialisation and no functions in declaration code in the monitor 
+      --If there the initialisation and declaration code has no enabling logic (i.e. no call to function LARVA_EnableContract) in the monitor 
       --  then simply set the monitor to running
       --  otherwise set the monitor initially to not started
-      --            and if there is no declaration code
+      --            and if the declaration code has no enabling logic
       --                    then add a modifier that includes logic to execute the monitor initialisation code and then the original constructor
       --                         and if the original smart contract has no constructor then create one
       --                         and then add the just created modifier to the existing constructor
       --                    else turn the old constructor (if any) into a normal function 
       --                         and allow it to be executed only if the status of the monitor is READY
       --                         and create a new constructor containing the initialisation code of the monitor
-    (if initialisation monitor == Block [] && (["" | (ContractPartFunctionDefinition _ _ _ _ _) <- declarations monitor] == [])
+    (if not $ monitorInitialisationHasCustomEnablingLogic monitor && (not $ monitorDeclarationsHasCustomEnablingLogic monitor)
               then --rename old constructor to new contractname if using old style constructor (will only have effect if this is present)
-                    (renameFunctionInContract contract' (contract, contract') |>
-
-                     addContractParts contract' 
-                        (map parser' [
-                          -- LARVA_status keeps track of the current status of the contract
-                          "LARVA_STATUS private LARVA_Status = LARVA_STATUS.RUNNING;"
-                        ])) 
-              else (addContractParts contract' 
-                    (map parser' [
-                      -- LARVA_status keeps track of the current status of the contract
-                      "LARVA_STATUS private LARVA_Status = LARVA_STATUS.NOT_STARTED;"
-                    ]) |>
-                    (
-                      if (["" | (ContractPartFunctionDefinition _ _ _ _ _) <- declarations monitor] == [])
+                    renameFunctionInContract contract' (contract, contract') |>
+                    addContractParts contract'
+                      (map parser' [
+                        -- Modifier to be added to the old constructor to ensure that it is ready to be called and to set the status
+                        -- to running after terminating succesfully
+                      "modifier LARVA_Constructor {" ++ (display $ initialisation monitor) ++ "LARVA_Status = LARVA_STATUS.RUNNING; _; }"
+                      ]) |> 
+                      addTopModifierToContractConstructor 
+                      contract' (Identifier "LARVA_Constructor", ExpressionList []) 
+              else ((if monitorInitialisationHasCustomEnablingLogic monitor
                           then addContractParts contract' 
                                 (map parser' [
                                   -- Modifier to be added to the old constructor to ensure that it is ready to be called and to set the status
@@ -299,3 +297,41 @@ instrumentSpecification :: Specification -> Instrumentation
 instrumentSpecification specification =
   foldl (\f c -> instrumentContractSpecification c . f) id (contractSpecifications specification)
 
+-----------------------
+
+-- IfStatement Expression Statement (Maybe Statement)
+--   | WhileStatement Expression Statement
+--   | InlineAssemblyStatement (Maybe StringLiteral) InlineAssemblyBlock
+--   | ForStatement (Maybe Statement, Maybe Expression, Maybe Expression) Statement
+--   | BlockStatement Block
+
+--   | DoWhileStatement Statement Expression
+--   | PlaceholderStatement
+--   | Continue
+--   | Break
+--   | Return (Maybe Expression)
+--   | Throw
+--   | EmitStatement Expression
+
+--   | SimpleStatementExpression Expression
+--   | SimpleStatementVariableList IdentifierList (Maybe Expression)
+--  -- | SimpleStatementVariableDeclaration VariableDeclaration (Maybe Expression)
+--   | SimpleStatementVariableDeclarationList [Maybe VariableDeclaration] [Expression]
+--   | SimpleStatementVariableAssignmentList [Maybe Identifier] [Expression]
+
+monitorDeclarationsHasCustomEnablingLogic :: ContractSpecification -> Bool
+monitorDeclarationsHasCustomEnablingLogic monitor = (["" | (ContractPartFunctionDefinition _ _ _ _ (Just b)) <- declarations monitor, containsCallToFunction (Identifier "LARVA_EnableContract") (BlockStatement b)] /= [])
+
+monitorInitialisationHasCustomEnablingLogic :: ContractSpecification -> Bool
+monitorInitialisationHasCustomEnablingLogic monitor = (containsCallToFunction (Identifier "LARVA_EnableContract") (BlockStatement (initialisation monitor)))
+
+containsCallToFunction :: FunctionName -> Statement -> Bool
+containsCallToFunction f (IfStatement _ stmt Nothing) = containsCallToFunction f stmt
+containsCallToFunction f (IfStatement _ stmt (Just stmtt)) = containsCallToFunction f stmt || containsCallToFunction f stmtt
+containsCallToFunction f (WhileStatement _ stmt) = containsCallToFunction f stmt
+containsCallToFunction f (DoWhileStatement stmt _) = containsCallToFunction f stmt
+containsCallToFunction f (ForStatement (Nothing, _, _) stmt) = containsCallToFunction f stmt
+containsCallToFunction f (ForStatement ((Just stmtt), _, _) stmt) = containsCallToFunction f stmt || containsCallToFunction f stmtt
+containsCallToFunction f (SimpleStatementExpression (Literal (PrimaryExpressionIdentifier id))) = id == f
+containsCallToFunction f (BlockStatement (Block (s:stmts))) = containsCallToFunction f s || containsCallToFunction f (BlockStatement (Block stmts))
+containsCallToFunction _ _ = False
