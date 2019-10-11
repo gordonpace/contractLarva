@@ -66,14 +66,14 @@ instrumentContractSpecification monitor =
                                     [ (ContractPartConstructorDefinition
                                         (ParameterList [])
                                         [FunctionDefinitionTagPublic]
-                                        (Nothing)
-                                      )] x)
+                                        (Just $ Block [])
+                                        )] x)
                   else (addContractParts contract' 
                                   [ (ContractPartFunctionDefinition
                                       (Just contract') (ParameterList [])
                                       [FunctionDefinitionTagPublic]
                                       Nothing
-                                      (Nothing)
+                                      (Just $ Block [])
                                     )] x)) |>
 
       --If there the initialisation and declaration code has no enabling logic (i.e. no call to function LARVA_EnableContract) in the monitor 
@@ -327,10 +327,10 @@ instrumentSpecification specification =
 --   | SimpleStatementVariableAssignmentList [Maybe Identifier] [Expression]
 
 monitorDeclarationsHasCustomEnablingLogic :: ContractSpecification -> Bool
-monitorDeclarationsHasCustomEnablingLogic monitor = result = (["" | (ContractPartFunctionDefinition _ _ _ _ (Just b)) <- declarations monitor, containsCallToFunction (Identifier "LARVA_EnableContract") (BlockStatement b)] /= [])
+monitorDeclarationsHasCustomEnablingLogic monitor = (["" | (ContractPartFunctionDefinition _ _ _ _ (Just b)) <- declarations monitor, containsCallToFunction (Identifier "LARVA_EnableContract") (BlockStatement b)] /= [])
 
 monitorInitialisationHasCustomEnablingLogic :: ContractSpecification -> Bool
-monitorInitialisationHasCustomEnablingLogic monitor = result = (containsCallToFunction (Identifier "LARVA_EnableContract") (BlockStatement (initialisation monitor)))
+monitorInitialisationHasCustomEnablingLogic monitor = (containsCallToFunction (Identifier "LARVA_EnableContract") (BlockStatement (initialisation monitor)))
 
 containsCallToFunction :: FunctionName -> Statement -> Bool
 containsCallToFunction f (IfStatement _ stmt Nothing) = containsCallToFunction f stmt

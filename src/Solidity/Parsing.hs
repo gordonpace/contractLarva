@@ -316,7 +316,7 @@ instance Parseable ContractPart where
     concatMap _display ts ++ maybe "" ((" returns " ++) . display) mpl' ++ maybe ";" _display mb
   display (ContractPartConstructorDefinition pl ts mb) =
     "constructor" ++ _display pl ++
-    concatMap _display ts ++ maybe "{}" _display mb
+    concatMap _display ts ++ maybe ";" _display mb
   display (ContractPartEventDefinition i ipl a) =
     "event "++display i++_display ipl++(if a then " anonymous" else "") ++ ";"
   display (ContractPartStateVariableDeclaration v) = display v

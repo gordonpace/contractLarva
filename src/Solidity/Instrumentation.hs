@@ -542,13 +542,16 @@ instance SolidityNode ContractPart where
   renameFunctionsWithinContract _ _ cp = cp
 
   addModifierToFunctionsWithinContract _ fn (mn, es) (ContractPartFunctionDefinition (Just f) pl ts pl' b)
-    | fn f = ContractPartFunctionDefinition (Just f) pl (t:ts) pl' b
+    | fn f = ContractPartFunctionDefinition (Just f) pl (t:ts) pl' b'
     where
       t = FunctionDefinitionTagModifierInvocation
         ModifierInvocation {
           modifierInvocationIdentifier = mn,
           modifierInvocationParameters = if null (unExpressionList es) then Nothing else Just es
         }
+      b' = if (b == Nothing) 
+              then Just $ Block [] 
+              else b
   addModifierToFunctionsWithinContract _ _ _ p = p
 
   addModifierToContractConstructor _ (mn, es) (ContractPartConstructorDefinition pl ts b)
@@ -561,13 +564,16 @@ instance SolidityNode ContractPart where
         }
 
   addModifierToContractConstructor cn (mn, es) (ContractPartFunctionDefinition (Just f) pl ts pl' b)
-    | cn == f = ContractPartFunctionDefinition (Just f) pl (t:ts) pl' b
+    | cn == f = ContractPartFunctionDefinition (Just f) pl (t:ts) pl' b'
     where
       t = FunctionDefinitionTagModifierInvocation
         ModifierInvocation {
           modifierInvocationIdentifier = mn,
           modifierInvocationParameters = if null (unExpressionList es) then Nothing else Just es
         }
+      b' = if (b == Nothing) 
+              then Just $ Block [] 
+              else b
   addModifierToContractConstructor _ _ p = p
 
   getModifierFromContract _ mn m@(ContractPartModifierDefinition mn' _ _) | mn' == mn = Just m
