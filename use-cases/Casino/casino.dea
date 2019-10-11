@@ -1,0 +1,39 @@
+monitor Casino{
+
+    declarations{
+        uint total;
+    }
+
+    DEA NoReduction {
+        states {
+            TableOpen: initial;
+            TableClosed: accept;
+            BetPlaced;
+            PotReduced: bad;
+        }
+        transitions {
+            TableOpen -[after(closeTable) | pot == 0 ]-> TableClosed;
+            TableOpen -[after(placeBet(_value)) | _value <= pot ~> total += _value;]-> BetPlaced;
+            BetPlaced -[after(timeoutBet)]-> TableOpen;
+            BetPlaced -[after(resolveBet)]-> TableOpen;
+            BetPlaced -[pot@(LARVA_previous_pot > pot)]-> PotReduced;
+        }
+    }
+    
+    DEA OpenUntilResolution {
+        states {
+            TableClosed: initial;
+            TableOpen;
+            BetPlaced;
+            TableCloseDuringBet: bad;
+        }
+        transitions {
+            TableClosed -[after(openTable)]-> TableOpen;
+            TableOpen -[after(closeTable)]-> TableClosed;
+            TableOpen -[after(placeBet)]-> BetPlaced;
+            BetPlaced -[after(resolveBet)]-> TableOpen;
+            BetPlaced -[after(timeoutBet)]-> TableOpen;
+            BetPlaced -[after(closeTable)]-> TableCloseDuringBet;
+        }
+    }
+}

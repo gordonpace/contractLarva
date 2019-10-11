@@ -1,0 +1,80 @@
+monitor ERC20Interface{
+	declarations {
+		uint transferPreFrom;
+		uint transferPreTo;
+
+		uint transferFromPreFrom;
+		uint transferFromPreTo;
+		uint preAllowance;
+
+	}
+
+	reparation {
+		revert();
+	}
+
+	DEA TransferWellBehaviour {
+		states {		
+			Before: initial;
+			After;
+			Bad: bad;
+		}
+		
+		transitions {
+		
+			Before -[before(transfer(to, tokens)) | ~> {transferPreFrom = balanceOf(msg.sender); transferPreTo = balanceOf(to);}]-> After;	
+
+			After -[before(transfer(to, tokens))]-> Bad;
+			
+			After -[after(transfer(to, tokens)) | transferPreFrom < tokens && (balanceOf(msg.sender) != transferPreFrom || balanceOf(to) != transferPreTo)]-> Bad;
+
+			After -[after(transfer(to, tokens)) | transferPreFrom < tokens && (balanceOf(msg.sender) == transferPreFrom && balanceOf(to) == transferPreTo)]-> Before;
+
+			After -[after(transfer(to, tokens)) | transferPreFrom >= tokens && (balanceOf(msg.sender) != (transferPreFrom - tokens) || balanceOf(to) != (transferPreTo - tokens))]-> Bad;
+
+			After -[after(transfer(to, tokens)) | transferPreFrom >= tokens && (balanceOf(msg.sender) == (transferPreFrom - tokens) && balanceOf(to) == (transferPreTo - tokens))]-> Before;	
+		}
+	}
+
+	DEA TransferFromWellBehaviour {
+		states {
+			Before: initial;
+			After;
+			Bad: bad;
+		}
+		
+		transitions {
+			Before -[before(transferFrom(from, to, tokens)) | ~> {transferFromPreFrom = balanceOf(from); transferFromPreTo = balanceOf(to); preAllowance = allowance(msg.sender, from);}]-> After;	
+
+			After -[before(transferFrom(from, to, tokens))]-> Bad;
+			
+			After -[after(transferFrom(from, to, tokens)) | (transferFromPreFrom < tokens || preAllowance < tokens) && (balanceOf(msg.sender) != transferFromPreFrom || balanceOf(to) != transferFromPreTo || allowance(msg.sender, from) != preAllowance)]-> Bad;	
+
+			After -[after(transferFrom(from, to, tokens)) | (transferFromPreFrom < tokens || preAllowance < tokens) && (balanceOf(msg.sender) == transferFromPreFrom && balanceOf(to) == transferFromPreTo && allowance(msg.sender, from) == preAllowance)]-> Before;	
+
+			After -[after(transferFrom(from, to, tokens)) | (transferFromPreFrom >= tokens && preAllowance >= tokens) && (balanceOf(msg.sender) != (transferFromPreFrom - tokens) || balanceOf(to) != (transferFromPreTo - tokens) || allowance(msg.sender, from) != preAllowance - tokens)]-> Bad;	
+
+			After -[after(transferFrom(from, to, tokens)) | (transferFromPreFrom >= tokens && preAllowance >= tokens) && (balanceOf(msg.sender) == (transferFromPreFrom - tokens) && balanceOf(to) == (transferFromPreTo - tokens) && allowance(msg.sender, from) == preAllowance - tokens)]-> Before;	
+
+		}
+	}
+
+	DEA ApproveWellBehaviour {		
+		states {		
+			Before: initial;
+			After;
+			Bad: bad;
+		}
+		
+		transitions {	
+			Before -[before(approve(spender, tokens))]-> After;	
+			
+			After -[before(approve(spender, tokens))]-> Bad;
+
+			After -[after(approve(spender, tokens)) | allowance(msg.sender, spender) == tokens]-> Before;	
+
+			After -[after(approve(spender, tokens)) | allowance(msg.sender, spender) != tokens]-> Bad;	
+
+		}
+	}
+}

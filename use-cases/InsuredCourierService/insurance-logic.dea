@@ -1,0 +1,51 @@
+monitor CourierService {
+
+    declarations {
+        uint orderedTime;
+        uint minimumInsuredDeliveryTime = 24*30 hours;
+
+        address payable private insurer_address;
+        function getStake() private returns(uint) { return (1 ether); }
+        function getInsurer() private returns(address payable) { return insurer_address; }
+        function getInsured() private returns(address payable) { return customer; }
+
+        enum STAKE_STATUS { UNPAID, PAID }
+        STAKE_STATUS private stake_status = STAKE_STATUS.UNPAID;
+
+        function payStake() payable public{
+            require (stake_status == STAKE_STATUS.UNPAID);
+            require (msg.value == getStake());
+            require (msg.sender == getInsurer());
+            stake_status = STAKE_STATUS.PAID;
+            LARVA_EnableContract();
+        }
+    }
+
+    initialisation {
+        insurer_address = msg.sender;
+    }
+
+    reparation {
+        getInsured().transfer(getStake());
+        LARVA_DisableContract();
+    }
+
+    satisfaction {
+        getInsurer().transfer(getStake());
+    }
+
+    DEA UnDelivered{
+        states{
+            Start: initial;
+            Ordered;
+            Delivered: accept;
+            Undelivered: bad;
+        }
+
+        transitions{
+            Start -[after(order) | ~> orderedTime = now;]-> Ordered;
+            Ordered -[after(deliver) | now - orderedTime <= minimumInsuredDeliveryTime]-> Delivered;
+            Ordered -[after(requestRefund) | now - orderedTime >= minimumInsuredDeliveryTime]-> Undelivered;
+        }
+    }
+}

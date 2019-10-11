@@ -1,0 +1,36 @@
+monitor MultiOwners {
+
+    declarations{
+        mapping(uint => address) idRequestedBy;
+        mapping(address => mapping(address => bool)) votes;
+    }
+
+    reparation {
+        revert();
+    }
+
+    DEA IgnoreTransactionsStartedByExOwners{
+        states{
+            BeforeTransfer: initial;
+            BadTransfer: bad;
+        }
+
+        transitions{
+            BeforeTransfer -[after(proposeTransaction(_to,_val)) | ~> idRequestedBy[--id] = msg.sender;]-> BeforeTransfer;
+            BeforeTransfer -[before(transfer(_id)) | !owners[idRequestedBy[id]]]-> BadTransfer;
+        }
+    }
+
+    DEA NeutraliseDoubleVote{
+        states{
+            BeforeVote: initial;
+            DoubleVote: bad;
+        }
+
+        transitions{
+            BeforeVote -[after(removeOwner(_address)) | ~> votes[_address][msg.sender] = true;]-> BeforeVote;
+            BeforeVote -[before(removeOwner(_address)) | votes[_address][msg.sender]]-> DoubleVote;
+        }
+    }
+}
+

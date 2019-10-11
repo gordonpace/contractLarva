@@ -1,0 +1,50 @@
+monitor CourierService{
+	
+	DEA WellBehaviour {
+		states {
+			Start: initial;
+			Ordered;
+			Delivered;
+			Refunding;
+			Paid;
+			Refunded;
+			Bad: bad;
+		}
+
+		transitions {
+			Start -[after(order(eta)) | customer != msg.sender ]-> Bad;
+			Start -[after(delivery()) | ]-> Bad;
+			Start -[after(refund()) | ]-> Bad;
+
+			Start -[after(order(eta)) | customer == msg.sender ]-> Ordered;
+
+			Ordered -[after(order(eta)) | ]-> Bad;
+			Ordered -[after(delivery()) | customer != msg.sender ]-> Bad;
+			Ordered -[before(refund()) | customer != msg.sender ]-> Bad;
+
+			Ordered -[after(delivery()) | customer == msg.sender ]-> Delivered;
+
+			Delivered -[after(order(eta)) | ]-> Bad;
+			Delivered -[after(delivery()) | ]-> Bad;
+			Delivered -[after(refund()) | ]-> Bad;
+
+			Ordered -[before(refund()) | msg.sender == customer ]-> Refunding;
+
+			Refunding -[after(order(eta)) | ]-> Bad;
+			Refunding -[after(delivery()) | ]-> Bad;
+			Refunding -[after(refund()) | ]-> Bad;
+
+			Refunding -[before(transferTo(val)) | ]-> Paid;
+
+			Paid -[after(order(eta)) | ]-> Bad;
+			Paid -[after(delivery()) | ]-> Bad;
+
+			Paid -[after(refund()) |  ]-> Refunded;
+
+    		Refunded -[after(order(eta)) | ]-> Bad;
+			Refunded -[after(delivery()) | ]-> Bad;
+			Refunded -[after(refund()) | ]-> Bad;
+
+		}
+	}
+}

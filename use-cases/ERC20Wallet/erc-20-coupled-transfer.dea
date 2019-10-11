@@ -1,0 +1,42 @@
+monitor FixedSupplyToken{
+
+    declarations{
+        uint currentTokens;
+    }
+
+    reparation{
+        revert();
+    }
+    
+    //This property checks that any addition to the balance must be coupled immediately with a subtraction,
+    //ensuring tokens are only moved around, which ensuring that any change is immediately (modulo one step) reflected in the total some.
+    DEA AdditionOfBalanceMustBeAccompaniedBySubstituion{
+        states{
+            Before: initial;
+            StartTransfer;
+            SubAfterAdd;
+            AddAfterSub;
+            EndTransfer;
+            UnMatchedModification: bad;
+        }
+
+        transitions{
+            Before -[before(transfer(caller, to, tokens)) | ~> currentTokens = tokens;]-> StartTransfer;
+
+            StartTransfer -[after(add(a, tokens)) | currentTokens == tokens]-> SubAfterAdd;
+            StartTransfer -[after(add(a, tokens)) | currentTokens != tokens]-> UnMatchedModification;
+            StartTransfer -[after(sub(a, tokens)) | currentTokens == tokens]-> AddAfterSub;
+            StartTransfer -[after(sub(a, tokens)) | currentTokens != tokens]-> UnMatchedModification;
+
+            SubAfterAdd -[after(sub(a, tokens)) | currentTokens == tokens]-> EndTransfer;
+            SubAfterAdd -[after(sub(a, tokens)) | currentTokens != tokens]-> UnMatchedModification;
+            SubAfterAdd -[after(add(a, tokens))]-> UnMatchedModification;
+
+            SubAfterAdd -[after(add(a, tokens)) | currentTokens == tokens]-> EndTransfer;
+            SubAfterAdd -[after(add(a, tokens)) | currentTokens != tokens]-> UnMatchedModification;
+            SubAfterAdd -[after(sub(a, tokens))]-> UnMatchedModification;
+
+            EndTransfer -[after(transfer(caller, to, tokens)) | ~> currentTokens = 0;]-> Before;
+        }
+    }
+}

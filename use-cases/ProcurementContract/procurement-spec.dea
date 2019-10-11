@@ -1,0 +1,47 @@
+monitor Procurement{
+    declarations {
+        address mediator;
+        uint orderCount;
+        bool enoughItemsOrderedBadStateReached;
+    }
+
+    initialisation {
+        mediator = address(uint160(msg.sender));
+    }
+
+    reparation {
+        enoughItemsOrderedBadStateReached ? mediator.transfer(this.balance) : (); 
+    }
+
+    //When a contract terminates there should not be any ether left in its balance.
+    DEA NoEtherAfterTermination{
+        states{
+            DuringContract: initial;
+            EndedWithBalance: bad;
+            EndedWithoutBalance: accept;
+        }
+
+        transitions{
+            DuringContract -[after(terminateContract) | this.balance != 0 ~> enoughItemsOrderedBadStateReached = true;]-> EndedWithBalance;
+            DuringContract -[after(terminateContract) | this.balance == 0]-> EndedWithoutBalance;
+        }
+    }
+
+    //The buyer is obliged to order at least〈minimum-items〉, but no more than〈maximum-items〉items fora fixed price〈price〉before the termination of this contract.
+    DEA EnoughItemsOrdered{
+        states{
+            DuringContract: initial;
+            RangesChanged: bad;
+            OutsideOfRange: bad;
+            EnoughItems: accept;
+        }
+
+        transitions{
+            DuringContract -[after(createOrder(_orderNumber, _orderSize, _orderDeliveryTimeLeft)) | ~> orderCount += _orderNumber;]-> DuringContract;
+            DuringContract -[minimumItemsToBeOrdered@(LARVA_previous_minimumItemsToBeOrdered != minimumItemsToBeOrdered)]-> RangesChanged;
+            DuringContract -[maximumItemsToBeOrdered@(LARVA_previous_minimumItemsToBeOrdered != minimumItemsToBeOrdered)]-> RangesChanged;
+            DuringContract -[after(terminateContract()) | orderCount < minimumItemsToBeOrdered || orderCount > maximumItemsToBeOrdered]-> OutsideOfRange;
+            DuringContract -[after(terminateContract()) | orderCount >= minimumItemsToBeOrdered && orderCount <= maximumItemsToBeOrdered]-> EnoughItems;
+        }
+    }
+}

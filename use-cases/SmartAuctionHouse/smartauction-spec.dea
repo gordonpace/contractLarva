@@ -1,0 +1,76 @@
+monitor SmartAuctionHouse{
+
+    declarations{
+        mapping(address => uint) attemptsBeforeFullfillment;
+        mapping(uint => bool) cancelledItems; 
+        mapping(uint => bool) unfulfilled; 
+        mapping(address => uint[]) wonBids; 
+
+        uint timeSinceLastOffer;
+
+        function forceDeclareWinner() private{
+            ticks = 3; 
+            declareWinningOffer(); 
+            timeSinceLastOffer = 0;
+        }
+        
+        function cancelAnyUnfulfilledBids(address _bidder) private{
+            for(uint i = wonBids[_bidder].length - 1; i >= 0; i--){
+                if(unfulfilled[wonBids[_bidder][i]]){
+                    cancelledItems[wonBids[_bidder][i]] = false;
+                }
+            }
+        }
+
+        function areAnyUnfullfilled(address _bidder) private returns(bool){
+            for(uint i = wonBids[_bidder].length - 1; i >= 0; i--){
+                if(unfulfilled[wonBids[_bidder][i]]){
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
+
+    reparation{
+        revert();
+    }
+
+    //auctionOffItem cannot occur subsequently without declareWinningOffer in between
+    //if 15 minutes have passed since the last offer then automatically declare the winner
+    DEA OneAuctionAtATime{
+        states{
+            NoOngoingAuction: initial;
+            AuctionStart;
+            AuctionAttempted: bad;
+        }
+
+        transitions{
+            NoOngoingAuction -[after(auctionOffItem(_offerID, _startingOffer))]-> AuctionStart;
+            NoOngoingAuction -[after(makeOffer(_offer)) | ~> timeSinceLastOffer = now;]-> AuctionStart;
+            AuctionStart -[after(declareWinningOffer())]-> NoOngoingAuction;
+            AuctionStart -[before(auctionOffItem(_offerID, _startingOffer)) | now - timeSinceLastOffer < 15 minutes]-> AuctionAttempted;
+            AuctionStart -[before(auctionOffItem(_offerID, _startingOffer)) | now - timeSinceLastOffer >= 15 minutes ~> forceDeclareWinner();]-> AuctionStart;
+        }
+    }
+
+    //if winning bid is not fulfilled within a day's time
+    // then the bidder is not allowed to bid on other items
+    //      and any attempt to bid more than 3 times before paying then the winning bid is cancelled 
+    DEA WinningBidsMustBeFulfilledOrCancelled{
+        states{
+            Initial: initial;
+            UnfulfilledBids: bad;
+        }
+
+        transitions{
+            Initial -[before(declareWinningOffer()) | ~> unfulfilled[currentItem] = true;]-> Initial;
+            Initial -[after(fulfillOffer(_id)) | ~> unfulfilled[_id] = false;]-> Initial;
+            Initial -[before(fulfillOffer(_id)) | cancelledItems[_id]]-> UnfulfilledBids;
+            Initial -[after(auctionOffItem(_offerID, _startingOffer)) | areAnyUnfullfilled(msg.sender) && attemptsBeforeFullfillment[msg.sender] < 3 ~> attemptsBeforeFullfillment[msg.sender]++;]-> UnfulfilledBids;
+            Initial -[after(auctionOffItem(_offerID, _startingOffer)) | areAnyUnfullfilled(msg.sender) && attemptsBeforeFullfillment[msg.sender] > 3 ~> attemptsBeforeFullfillment[msg.sender]++;]-> UnfulfilledBids;
+            Initial -[after(auctionOffItem(_offerID, _startingOffer)) | !areAnyUnfullfilled(msg.sender) ~> attemptsBeforeFullfillment[msg.sender] = 0;]-> Initial;
+        }
+    }
+}
