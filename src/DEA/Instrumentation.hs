@@ -27,6 +27,8 @@ import DEA.DEA
 import DEA.Parsing
 import Solidity
 
+import Debug.Trace
+
 instrumentContractSpecification :: ContractSpecification -> Instrumentation
 instrumentContractSpecification monitor =
   -- (i)  Rename contract to LARVA_contract
@@ -53,23 +55,26 @@ instrumentContractSpecification monitor =
 
   --(iii) Deal with monitor constructors and status of monitor
 
-  --Add constructor if constructor not defined
-  (\x ->  if constructorIsDefinedInContract contract' x
-            then x
-            else if (useNewStyleConstructor x)
-                then (addContractParts contract' 
-                                  [ (ContractPartConstructorDefinition
-                                      (ParameterList [])
+    --rename old-style constructor to new contract name
+    renameFunctionInContract contract' (contract, contract') |>
+
+    --Add constructor if constructor not defined
+    (\x ->  if constructorIsDefinedInContract contract' x
+              then x
+              else if (useNewStyleConstructor x)
+                  then (addContractParts contract' 
+                                    [ (ContractPartConstructorDefinition
+                                        (ParameterList [])
+                                        [FunctionDefinitionTagPublic]
+                                        (Nothing)
+                                      )] x)
+                  else (addContractParts contract' 
+                                  [ (ContractPartFunctionDefinition
+                                      (Just contract') (ParameterList [])
                                       [FunctionDefinitionTagPublic]
+                                      Nothing
                                       (Nothing)
-                                    )] x)
-                else (addContractParts contract' 
-                                [ (ContractPartFunctionDefinition
-                                    (Just contract') (ParameterList [])
-                                    [FunctionDefinitionTagPublic]
-                                    Nothing
-                                    (Nothing)
-                                  )] x)) |>
+                                    )] x)) |>
 
       --If there the initialisation and declaration code has no enabling logic (i.e. no call to function LARVA_EnableContract) in the monitor 
       --  then simply set the monitor to running
@@ -81,9 +86,8 @@ instrumentContractSpecification monitor =
       --                    else turn the old constructor (if any) into a normal function 
       --                         and allow it to be executed only if the status of the monitor is READY
       --                         and create a new constructor containing the initialisation code of the monitor
-    (if not $ monitorInitialisationHasCustomEnablingLogic monitor && (not $ monitorDeclarationsHasCustomEnablingLogic monitor)
+    (if (not $ monitorDeclarationsHasCustomEnablingLogic monitor) && (not $ monitorInitialisationHasCustomEnablingLogic monitor) 
               then --rename old constructor to new contractname if using old style constructor (will only have effect if this is present)
-                    renameFunctionInContract contract' (contract, contract') |>
                     addContractParts contract'
                       (map parser' [
                         -- Modifier to be added to the old constructor to ensure that it is ready to be called and to set the status
@@ -107,11 +111,12 @@ instrumentContractSpecification monitor =
                                   -- to running after terminating succesfully
                                  "modifier LARVA_Constructor { require(LARVA_Status == LARVA_STATUS.READY); LARVA_Status = LARVA_STATUS.RUNNING; _; }"
                                 ]) |>
-                                renameFunctionInContract contract' (contract, (Identifier ((unIdentifier contract) ++ "Constructor"))) |>
+                                renameFunctionInContract contract' (contract', (Identifier ((unIdentifier contract) ++ "Constructor"))) |>
                     
                                 renameConstructorInContract contract' (Identifier ((unIdentifier contract) ++ "Constructor")) |>
                                 addTopModifierToFunctionInContract
-                                contract' (Identifier ((unIdentifier contract) ++ "Constructor")) (Identifier "LARVA_Constructor", ExpressionList []) |>
+                                contract' (Identifier ((unIdentifier contract) ++ "Constructor")) (Identifier "LARVA_Constructor", ExpressionList [])
+                                 |>
                                 (\x -> if (useNewStyleConstructor x)
                                           then (addContractParts contract' 
                                                             [ (ContractPartConstructorDefinition
@@ -322,10 +327,10 @@ instrumentSpecification specification =
 --   | SimpleStatementVariableAssignmentList [Maybe Identifier] [Expression]
 
 monitorDeclarationsHasCustomEnablingLogic :: ContractSpecification -> Bool
-monitorDeclarationsHasCustomEnablingLogic monitor = (["" | (ContractPartFunctionDefinition _ _ _ _ (Just b)) <- declarations monitor, containsCallToFunction (Identifier "LARVA_EnableContract") (BlockStatement b)] /= [])
+monitorDeclarationsHasCustomEnablingLogic monitor = result = (["" | (ContractPartFunctionDefinition _ _ _ _ (Just b)) <- declarations monitor, containsCallToFunction (Identifier "LARVA_EnableContract") (BlockStatement b)] /= [])
 
 monitorInitialisationHasCustomEnablingLogic :: ContractSpecification -> Bool
-monitorInitialisationHasCustomEnablingLogic monitor = (containsCallToFunction (Identifier "LARVA_EnableContract") (BlockStatement (initialisation monitor)))
+monitorInitialisationHasCustomEnablingLogic monitor = result = (containsCallToFunction (Identifier "LARVA_EnableContract") (BlockStatement (initialisation monitor)))
 
 containsCallToFunction :: FunctionName -> Statement -> Bool
 containsCallToFunction f (IfStatement _ stmt Nothing) = containsCallToFunction f stmt
@@ -334,6 +339,20 @@ containsCallToFunction f (WhileStatement _ stmt) = containsCallToFunction f stmt
 containsCallToFunction f (DoWhileStatement stmt _) = containsCallToFunction f stmt
 containsCallToFunction f (ForStatement (Nothing, _, _) stmt) = containsCallToFunction f stmt
 containsCallToFunction f (ForStatement ((Just stmtt), _, _) stmt) = containsCallToFunction f stmt || containsCallToFunction f stmtt
-containsCallToFunction f (SimpleStatementExpression (Literal (PrimaryExpressionIdentifier id))) = id == f
+containsCallToFunction f (SimpleStatementExpression expr) = exprContainsCallToFunction f expr
 containsCallToFunction f (BlockStatement (Block (s:stmts))) = containsCallToFunction f s || containsCallToFunction f (BlockStatement (Block stmts))
 containsCallToFunction _ _ = False
+
+exprContainsCallToFunction :: FunctionName -> Expression -> Bool
+exprContainsCallToFunction f (Unary _ ex) = exprContainsCallToFunction f ex
+exprContainsCallToFunction f (Binary _ e1 e2) = exprContainsCallToFunction f e1 || exprContainsCallToFunction f e2
+exprContainsCallToFunction f (Ternary _ e1 e2 e3) = exprContainsCallToFunction f e1 || exprContainsCallToFunction f e2 || exprContainsCallToFunction f e3
+exprContainsCallToFunction f (FunctionCallNameValueList e1 Nothing) = exprContainsCallToFunction f e1
+exprContainsCallToFunction f (FunctionCallNameValueList e1 (Just (NameValueList nameValueList))) = exprContainsCallToFunction f e1 || nameValueListContainsCall f nameValueList
+                                                                                where nameValueListContainsCall f [] = False
+                                                                                      nameValueListContainsCall f ((_,e):rest) = exprContainsCallToFunction f e || nameValueListContainsCall f (rest)
+
+exprContainsCallToFunction f (FunctionCallExpressionList e Nothing) = exprContainsCallToFunction f e
+exprContainsCallToFunction f (FunctionCallExpressionList e (Just (ExpressionList exs))) = exprContainsCallToFunction f e || (foldr (||) False (map (exprContainsCallToFunction f) exs))
+exprContainsCallToFunction f (Literal (PrimaryExpressionIdentifier ff)) = f == ff
+exprContainsCallToFunction _ _ = False
