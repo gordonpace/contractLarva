@@ -53,6 +53,24 @@ instrumentContractSpecification monitor =
 
   --(iii) Deal with monitor constructors and status of monitor
 
+  --Add constructor if constructor not defined
+  (\x ->  if constructorIsDefinedInContract contract' x
+            then x
+            else if (useNewStyleConstructor x)
+                then (addContractParts contract' 
+                                  [ (ContractPartConstructorDefinition
+                                      (ParameterList [])
+                                      [FunctionDefinitionTagPublic]
+                                      (Nothing)
+                                    )] x)
+                else (addContractParts contract' 
+                                [ (ContractPartFunctionDefinition
+                                    (Just contract') (ParameterList [])
+                                    [FunctionDefinitionTagPublic]
+                                    Nothing
+                                    (Nothing)
+                                  )] x)) |>
+
       --If there the initialisation and declaration code has no enabling logic (i.e. no call to function LARVA_EnableContract) in the monitor 
       --  then simply set the monitor to running
       --  otherwise set the monitor initially to not started
@@ -81,22 +99,6 @@ instrumentContractSpecification monitor =
                                   -- to running after terminating succesfully
                                  "modifier LARVA_Constructor {" ++ (display $ initialisation monitor) ++"require(LARVA_Status == LARVA_STATUS.READY); LARVA_Status = LARVA_STATUS.RUNNING; _; }"
                                 ]) |>
-                                (\x ->  if constructorIsDefinedInContract contract' x
-                                          then x
-                                          else if (useNewStyleConstructor x)
-                                              then (addContractParts contract' 
-                                                                [ (ContractPartConstructorDefinition
-                                                                    (ParameterList [])
-                                                                    [FunctionDefinitionTagPublic]
-                                                                    (Just $ initialisation monitor)
-                                                                  )] x)
-                                              else (addContractParts contract' 
-                                                              [ (ContractPartFunctionDefinition
-                                                                  (Just contract') (ParameterList [])
-                                                                  [FunctionDefinitionTagPublic]
-                                                                  Nothing
-                                                                  (Just $ initialisation monitor)
-                                                                )] x)) |>
                                 addTopModifierToContractConstructor 
                                 contract' (Identifier "LARVA_Constructor", ExpressionList []) 
                           else addContractParts contract' 
