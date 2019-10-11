@@ -1037,7 +1037,7 @@ instance Parseable Identifier where
 
 instance Parseable TupleExpression where
   parser =
-    (RoundBrackets <$> (char '(' *> whitespace *> commaSep1 (parser <* whitespace) <* char ')')) <|>
+    (RoundBrackets <$> (char '(' *> whitespace *> commaSep (parser <* whitespace) <* char ')')) <|>
     (SquareBrackets <$> (char '[' *> whitespace *> commaSep1 (parser <* whitespace) <* char ']'))
   display (RoundBrackets es) = "(" ++ intercalate ", " (map display es) ++ ")"
   display (SquareBrackets es) = "[" ++ intercalate ", " (map display es) ++ "]"
