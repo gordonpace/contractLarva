@@ -68,7 +68,7 @@ monitor SmartAuctionHouse{
             Initial -[before(declareWinningOffer()) | ~> unfulfilled[currentItem] = true;]-> Initial;
             Initial -[after(fulfillOffer(_id)) | ~> unfulfilled[_id] = false;]-> Initial;
             Initial -[before(fulfillOffer(_id)) | cancelledItems[_id]]-> UnfulfilledBids;
-            Initial -[after(auctionOffItem(_offerID, _startingOffer)) | areAnyUnfullfilled(msg.sender) && attemptsBeforeFullfillment[msg.sender] < 3 ~> attemptsBeforeFullfillment[msg.sender]++;]-> UnfulfilledBids;
+            Initial -[after(auctionOffItem(_offerID, _startingOffer)) | areAnyUnfullfilled(msg.sender) && attemptsBeforeFullfillment[msg.sender] < 3 ~> attemptsBeforeFullfillment[msg.sender]++;]-> Initial;
             Initial -[after(auctionOffItem(_offerID, _startingOffer)) | areAnyUnfullfilled(msg.sender) && attemptsBeforeFullfillment[msg.sender] > 3 ~> attemptsBeforeFullfillment[msg.sender]++;]-> UnfulfilledBids;
             Initial -[after(auctionOffItem(_offerID, _startingOffer)) | !areAnyUnfullfilled(msg.sender) ~> attemptsBeforeFullfillment[msg.sender] = 0;]-> Initial;
         }
