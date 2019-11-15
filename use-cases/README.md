@@ -17,4 +17,10 @@ Below is a short description of each of these use cases:
 
 4. **FixedSupplyToken**: An example implementation of an **ERC20Interface** which relies on the supply of tokens not changing. The specification ensures this by specifying that any addition (or subtraction) to a user's wallet must be followed by a substraction (or addition) of the same value to a user's wallet before the __transfer__ function has finished.
 
-5. 
+5. **InsuredCourierService**: This smart contract is similar to that used in 2., however the specification logic does not simply attempt to verify the well-behaviour of the smart contract but adds insurance logic to the business process.
+
+6. **MultiOwnersWallet**: This wallet allows transactions to occur if all the owners sign off on it, while they can vote to remove other owners. The specification here ensures that once owners are removed the transactions they started cannot be fulfilled, while it also detects and prevents double voting.
+
+7. **Procurement**: An implementation on the blockchain of an agreement between two parties, where the buyer binds themselves to buy some amount of goods at some price, and the seller binds themselves to deliver these items. The specification ensures that: (i) after termination there is no ether left in the smart contract; and (ii) enough items (between the minimum and maximum required amount) are ordered by termination.
+
+8. **SmartAuctionHouse**: This smart contract allows users to bid on certain items. The specification ensures: (i) only one auction occurs at a time with the added business logic that if 15 minutes have passed since the last bid the smart contract is forced to declare a winner; and (ii) that winning bids must be fulfilled (i.e. the winning bidder must pay for the item within the day), and any attempt to bid more that 3 times before paying results in the winning bid being cancelled.
