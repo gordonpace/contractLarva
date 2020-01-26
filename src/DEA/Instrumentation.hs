@@ -36,6 +36,10 @@ instrumentContractSpecification monitor =
 
   -- (ii) Add LARVA_Status handlers
 
+    -- Add the modifier to check that the contract is enabled to all functions (except to any old style constructors)
+    addTopModifierToAllButTheseFunctionInContract
+      contract' [contract'] (Identifier "LARVA_ContractIsEnabled", ExpressionList []) |>
+
     addContractParts contract' (
       map parser'
         [ 
@@ -49,10 +53,6 @@ instrumentContractSpecification monitor =
           -- Modifier to ensure that the contract has been enabled
           , "modifier LARVA_ContractIsEnabled { require(LARVA_Status == LARVA_STATUS.RUNNING); _; }"        ]) |>  
     
-    -- Add the modifier to check that the contract is enabled to all functions (except to any old style constructors)
-    addTopModifierToAllButTheseFunctionInContract
-    contract' [contract'] (Identifier "LARVA_ContractIsEnabled", ExpressionList []) |>
-
   --(iii) Deal with monitor constructors and status of monitor
 
     --rename old-style constructor to new contract name
@@ -90,18 +90,17 @@ instrumentContractSpecification monitor =
               then --rename old constructor to new contractname if using old style constructor (will only have effect if this is present)
                     addContractParts contract'
                       (map parser' [
-                        -- Modifier to be added to the old constructor to ensure that it is ready to be called and to set the status
-                        -- to running after terminating succesfully
-                      "modifier LARVA_Constructor {" ++ (display $ initialisation monitor) ++ "LARVA_Status = LARVA_STATUS.RUNNING; _; }"
+                        -- Modifier to be added to the old constructor to ensure that it is ready to be called and to set the status to running
+                      "modifier LARVA_Constructor {"++ "LARVA_Status = LARVA_STATUS.RUNNING;"
+                      ++ (display $ initialisation monitor) ++ " _; }"
                       ]) |> 
                       addTopModifierToContractConstructor 
                       contract' (Identifier "LARVA_Constructor", ExpressionList []) 
               else ((if monitorInitialisationHasCustomEnablingLogic monitor
                           then addContractParts contract' 
                                 (map parser' [
-                                  -- Modifier to be added to the old constructor to ensure that it is ready to be called and to set the status
-                                  -- to running after terminating succesfully
-                                 "modifier LARVA_Constructor {" ++ (display $ initialisation monitor) ++"require(LARVA_Status == LARVA_STATUS.READY); LARVA_Status = LARVA_STATUS.RUNNING; _; }"
+                                  -- Modifier to be added to the old constructor to ensure that it is ready to be called and to set the status to running after
+                                 "modifier LARVA_Constructor {" ++ "require(LARVA_Status == LARVA_STATUS.READY); LARVA_Status = LARVA_STATUS.RUNNING; "  ++ (display $ initialisation monitor)  ++  " _; }"
                                 ]) |>
                                 addTopModifierToContractConstructor 
                                 contract' (Identifier "LARVA_Constructor", ExpressionList []) 
