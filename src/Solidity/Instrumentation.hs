@@ -73,7 +73,7 @@ getAllDefinedModifierNames s =
   ]
 
 functionIsDefinedInContract :: ContractName -> FunctionName -> SolidityCode -> Bool
-functionIsDefinedInContract cn fn code = case (getFunctionFromContract cn fn code) of
+functionIsDefinedInContract cn fn code = case getFunctionFromContract cn fn code of
                                                 Just _ -> True
                                                 _ -> False
 
@@ -141,58 +141,51 @@ data ConstructorStyle = OldStyle | NewStyle | Both deriving (Eq)
 
 --Functions to detect whether a version number is bigger or less than anothe
 biggerThan :: [Int] -> [Int] -> Bool
-biggerThan (v1:vs1) (v2:vs2) = if v1 > v2
-                                  then True
-                                  else if v1 < v2
-                                          then False
-                                          else biggerThan vs1 vs2
+biggerThan (v1:vs1) (v2:vs2)  
+                | v1 > v2 = True
+                | v1 < v2 = False
+                | otherwise = biggerThan vs1 vs2
+
 biggerThan (v:vs) [] = True
 biggerThan [] _ = False
 
 lessThan :: [Int] -> [Int] -> Bool
-lessThan (v1:vs1) (v2:vs2) = if v1 < v2
-                                  then True
-                                  else if v1 > v2
-                                          then False
-                                          else lessThan vs1 vs2
+lessThan (v1:vs1) (v2:vs2) 
+                | v1 < v2 = True
+                | v1 > v2 = False
+                | otherwise = lessThan vs1 vs2
+                
 lessThan [] (v:vs) = True
 lessThan _ [] = False
 
 --Computing the style of constructors allowed by the specified version
 constructorStylesPossible :: Version -> [ConstructorStyle]
 
-constructorStylesPossible (Version Equal no) = if no `biggerThan` [0,4,23] || no == [0,4,23]
-                                                  then if no `biggerThan` [0,5] || no == [0,5]
-                                                        then [NewStyle]
-                                                        else [Both]
-                                                  else [OldStyle]
+constructorStylesPossible (Version Equal no) 
+                    | not (no `biggerThan` [0,4,23] || no == [0,4,23]) = [OldStyle]
+                    | no `biggerThan` [0,5] || no == [0,5] = [NewStyle]
+                    | otherwise = [Both]
   
-constructorStylesPossible (Version Less no) = if no `lessThan` [0,4,23] || no == [0,4,23]
-                                                  then [OldStyle]
-                                                  else if no `lessThan` [0,5] || no == [0,5]
-                                                        then [OldStyle, Both]
-                                                        else [NewStyle, OldStyle, Both]
+constructorStylesPossible (Version Less no) 
+                    | no `lessThan` [0,4,23] || no == [0,4,23] = [OldStyle]
+                    | no `lessThan` [0,5] || no == [0,5] = [OldStyle, Both]
+                    | otherwise = [NewStyle, OldStyle, Both]
   
-constructorStylesPossible (Version More no) = if no `biggerThan` [0,4,26] || no == [0,4,26]
-                                                  then [NewStyle]
-                                                  else if no `biggerThan` [0,4,22] || no == [0,4,22]
-                                                          then [NewStyle, Both]
-                                                          else [OldStyle, NewStyle, Both]
+constructorStylesPossible (Version More no) 
+                    | no `biggerThan` [0,4,26] || no == [0,4,26] = [NewStyle]
+                    | no `biggerThan` [0,4,22] || no == [0,4,22] = [NewStyle, Both]
+                    | otherwise = [OldStyle, NewStyle, Both]
   
-constructorStylesPossible (Version LessOrEqual no) = if no `lessThan` [0,4,22]
-                                                        then [OldStyle]
-                                                        else if no `lessThan` [0,4,26]
-                                                              then [OldStyle, Both]
-                                                              else [NewStyle, OldStyle, Both]
+constructorStylesPossible (Version LessOrEqual no)
+                    | no `lessThan` [0,4,22] = [OldStyle]
+                    | no `lessThan` [0,4,26] = [OldStyle, Both]
+                    | otherwise = [NewStyle, OldStyle, Both]
   
-constructorStylesPossible (Version MoreOrEqual no) = if no `biggerThan` [0,5]
-                                                          then [NewStyle]
-                                                          else if no `biggerThan` [0,4,23]
-                                                                  then [NewStyle, Both]
-                                                                  else [OldStyle, NewStyle, Both]
+constructorStylesPossible (Version MoreOrEqual no) 
+                    | no `biggerThan` [0,5] = [NewStyle]
+                    | no `biggerThan` [0,4,23] = [NewStyle, Both]
+                    | otherwise = [OldStyle, NewStyle, Both]
   
-
-
 
 --Check whether a new style or an old style constructor should be used for the contracts in the specified smart contracts
 -- for both a conjunction and disjunction of version ranges the intersection of the styles of each version is computed
@@ -203,18 +196,14 @@ constructorStylesPossible (Version MoreOrEqual no) = if no `biggerThan` [0,5]
 --  then we default to using the new compiler and leave it up to the user to manually correct the contract during compilation
 -- Note also how the intersection of version styles is used for both conjunction and disjunction of versions to remain conservative
 useNewStyleConstructor :: SolidityCode -> Bool
-useNewStyleConstructor (SolidityCode (SourceUnit ((SourceUnit1_PragmaDirective (SolidityPragmaConjunction versions)):rest))) 
-    = let styles = foldr (intersect) ([NewStyle, OldStyle, Both]) (map constructorStylesPossible versions)
-        in if styles == [Both] || NewStyle `elem` styles
-              then True
-              else False
+useNewStyleConstructor (SolidityCode (SourceUnit (SourceUnit1_PragmaDirective (SolidityPragmaConjunction versions):rest)))
+    = let styles = foldr (intersect . constructorStylesPossible) [NewStyle, OldStyle, Both] versions
+        in styles == [Both] || NewStyle `elem` styles
 
 
-useNewStyleConstructor (SolidityCode (SourceUnit ((SourceUnit1_PragmaDirective (SolidityPragmaDisjunction versions)):rest))) 
-    = let styles = foldr (intersect) ([]) (map constructorStylesPossible versions)
-        in if styles == [Both] || NewStyle `elem` styles
-              then True
-              else False
+useNewStyleConstructor (SolidityCode (SourceUnit (SourceUnit1_PragmaDirective (SolidityPragmaDisjunction versions):rest)))
+    = let styles = foldr (intersect . constructorStylesPossible) [] versions
+        in styles == [Both] || NewStyle `elem` styles
 
 useNewStyleConstructor (SolidityCode (SourceUnit (_:rest))) = useNewStyleConstructor (SolidityCode (SourceUnit rest))
 useNewStyleConstructor _ = True
@@ -224,7 +213,7 @@ constructorIsDefinedInContract :: ContractName -> SolidityCode -> Bool
 constructorIsDefinedInContract cn code = oldStyleConstructorUsed cn code || newStyleConstructorUsed cn code
 
 oldStyleConstructorUsed :: ContractName -> SolidityCode -> Bool
-oldStyleConstructorUsed cn code = functionIsDefinedInContract cn cn code
+oldStyleConstructorUsed cn = functionIsDefinedInContract cn cn
 
 newStyleConstructorUsed :: ContractName -> SolidityCode -> Bool
 newStyleConstructorUsed cn code = case getContract cn code of
@@ -238,7 +227,7 @@ parseDeclaration = fromRight undefined . parse parser ""
 
 -- CONTRACT MODIFIERS
 conditionalInstrumentation :: (SolidityCode -> Bool) -> Instrumentation -> Instrumentation
-conditionalInstrumentation pred instr = \x -> if pred x
+conditionalInstrumentation pred instr x = if pred x
                                                 then instr x
                                                 else x
 
@@ -287,7 +276,7 @@ addTopModifierToFunctionsInContract cn fs (mn, es) =
 
 addTopModifierToAllButTheseFunctionInContract :: ContractName -> [FunctionName] -> (ModifierName, ExpressionList) -> Instrumentation
 addTopModifierToAllButTheseFunctionInContract cn fs (mn, es) = 
-  addModifierToFunctionsWithinContract cn (\f -> f `notElem` fs) (mn, es)
+  addModifierToFunctionsWithinContract cn (`notElem` fs) (mn, es)
 
 getFunctionParameters :: ContractName -> FunctionName -> SolidityCode -> ParameterList
 getFunctionParameters cn fn code = 
@@ -549,7 +538,7 @@ instance SolidityNode ContractPart where
           modifierInvocationIdentifier = mn,
           modifierInvocationParameters = if null (unExpressionList es) then Nothing else Just es
         }
-      b' = if (b == Nothing) 
+      b' = if isNothing b
               then Just $ Block [] 
               else b
   addModifierToFunctionsWithinContract _ _ _ p = p
@@ -571,7 +560,7 @@ instance SolidityNode ContractPart where
           modifierInvocationIdentifier = mn,
           modifierInvocationParameters = if null (unExpressionList es) then Nothing else Just es
         }
-      b' = if (b == Nothing) 
+      b' = if isNothing b
               then Just $ Block [] 
               else b
   addModifierToContractConstructor _ _ p = p
