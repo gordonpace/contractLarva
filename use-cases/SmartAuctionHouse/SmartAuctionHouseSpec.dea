@@ -48,7 +48,7 @@ monitor SmartAuctionHouse{
 
         transitions{
             NoOngoingAuction -[after(auctionOffItem(_offerID, _startingOffer))]-> AuctionStart;
-            NoOngoingAuction -[after(makeOffer(_offer)) | ~> timeSinceLastOffer = now;]-> AuctionStart;
+            AuctionStart -[after(makeOffer(_offer)) | ~> timeSinceLastOffer = now;]-> AuctionStart;
             AuctionStart -[after(declareWinningOffer())]-> NoOngoingAuction;
             AuctionStart -[before(auctionOffItem(_offerID, _startingOffer)) | now - timeSinceLastOffer < 15 minutes]-> AuctionAttempted;
             AuctionStart -[before(auctionOffItem(_offerID, _startingOffer)) | now - timeSinceLastOffer >= 15 minutes ~> forceDeclareWinner();]-> AuctionStart;

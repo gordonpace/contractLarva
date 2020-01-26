@@ -141,8 +141,8 @@ contract FixedSupplyToken is ERC20TokenImplementation, Owned {
     // - Owner's account must have sufficient balance to transfer
     // - 0 value transfers are allowed
     // ------------------------------------------------------------------------
-    function transfer(address caller, address to, uint tokens) onlyOwner public returns (bool success) {
-        balances[caller] = sub(balances[caller],tokens);
+    function transfer(address to, uint tokens) onlyOwner public returns (bool success) {
+        balances[msg.sender] = sub(balances[msg.sender],tokens);
         balances[to] = add(balances[to],tokens);
         emit Transfer(caller, to, tokens);
         return true;

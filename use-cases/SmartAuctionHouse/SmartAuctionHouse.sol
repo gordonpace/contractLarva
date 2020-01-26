@@ -86,7 +86,7 @@ contract SmartAuctionHouse{
         return bidder;
     }
 
-    function getItemWinningOFfer(uint _id) public returns(uint){
+    function getItemWinningOffer(uint _id) public returns(uint){
         (, uint winningOffer) = getItemWinningOffer(_id);
         return winningOffer;
     }

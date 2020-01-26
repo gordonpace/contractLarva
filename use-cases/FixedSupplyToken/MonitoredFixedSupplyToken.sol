@@ -31,10 +31,20 @@ contract Owned {
 
 }
 contract LARVA_FixedSupplyToken is ERC20TokenImplementation, Owned {
-  modifier LARVA_DEA_1_handle_after_transfer__parameters_caller_to_tokens (address caller, address to, uint tokens) {
+  modifier LARVA_DEA_1_handle_after_transfer__parameters_caller_to_tokens (address caller, uint to, undefined tokens) {
     if ((LARVA_STATE_1 == 4)) {
       LARVA_STATE_1 = 0;
       currentTokens = 0;
+    } else {
+      if ((LARVA_STATE_1 == 2)) {
+        LARVA_STATE_1 = 5;
+        LARVA_reparation();
+      } else {
+        if ((LARVA_STATE_1 == 3)) {
+          LARVA_STATE_1 = 5;
+          LARVA_reparation();
+        }
+      }
     }
     _;
   }
@@ -88,7 +98,7 @@ contract LARVA_FixedSupplyToken is ERC20TokenImplementation, Owned {
     }
     _;
   }
-  modifier LARVA_DEA_1_handle_before_transfer__parameters_caller_to_tokens (address caller, address to, uint tokens) {
+  modifier LARVA_DEA_1_handle_before_transfer__parameters_caller_to_tokens (address caller, uint to, undefined tokens) {
     if ((LARVA_STATE_1 == 0)) {
       LARVA_STATE_1 = 1;
       currentTokens = tokens;
@@ -138,8 +148,8 @@ contract LARVA_FixedSupplyToken is ERC20TokenImplementation, Owned {
   function balanceOf (address tokenOwner) LARVA_ContractIsEnabled public view returns (uint balance) {
     return balances[tokenOwner];
   }
-  function transfer (address caller, address to, uint tokens) LARVA_DEA_1_handle_after_transfer__parameters_caller_to_tokens(caller, to, tokens) LARVA_DEA_1_handle_before_transfer__parameters_caller_to_tokens(caller, to, tokens) LARVA_ContractIsEnabled onlyOwner public returns (bool success) {
-    balances[caller] = sub(balances[caller], tokens);
+  function transfer (address to, uint tokens) LARVA_DEA_1_handle_after_transfer__parameters_caller_to_tokens(to, tokens) LARVA_DEA_1_handle_before_transfer__parameters_caller_to_tokens(to, tokens) LARVA_ContractIsEnabled onlyOwner public returns (bool success) {
+    balances[msg.sender] = sub(balances[msg.sender], tokens);
     balances[to] = add(balances[to], tokens);
     emit Transfer(caller, to, tokens);
     return true;

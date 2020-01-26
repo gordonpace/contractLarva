@@ -1,11 +1,4 @@
-contract LARVA_CourierService {
-  modifier LARVA_DEA_1_handle_after_requestRefund__no_parameters {
-    if ((LARVA_STATE_1 == 1) && (now - orderedTime >= minimumInsuredDeliveryTime)) {
-      LARVA_STATE_1 = 3;
-      LARVA_reparation();
-    }
-    _;
-  }
+contract LARVA_InsuredCourierService {
   modifier LARVA_DEA_1_handle_after_order__no_parameters {
     if ((LARVA_STATE_1 == 0)) {
       LARVA_STATE_1 = 1;
@@ -17,6 +10,11 @@ contract LARVA_CourierService {
     if ((LARVA_STATE_1 == 1) && (now - orderedTime <= minimumInsuredDeliveryTime)) {
       LARVA_STATE_1 = 2;
       LARVA_satisfaction();
+    } else {
+      if ((LARVA_STATE_1 == 1) && (now - orderedTime >= minimumInsuredDeliveryTime)) {
+        LARVA_STATE_1 = 3;
+        LARVA_reparation();
+      }
     }
     _;
   }
@@ -32,7 +30,7 @@ contract LARVA_CourierService {
   uint minimumInsuredDeliveryTime = 24 * 30 hours;
   address payable private insurer_address;
   function getStake () private returns (uint) {
-    return (1 ether);
+    return value;
   }
   function getInsurer () private returns (address payable) {
     return insurer_address;
@@ -57,7 +55,7 @@ contract LARVA_CourierService {
     LARVA_Status = LARVA_STATUS.RUNNING;
     _;
   }
-  function CourierServiceConstructor () LARVA_Constructor public {
+  function InsuredCourierServiceConstructor () LARVA_Constructor public {
   }
   enum LARVA_STATUS {NOT_STARTED, READY, RUNNING, STOPPED}
   function LARVA_EnableContract () LARVA_ContractIsEnabled private {
@@ -71,37 +69,21 @@ contract LARVA_CourierService {
     require(LARVA_Status == LARVA_STATUS.RUNNING);
     _;
   }
-  uint fees;
-  address payable customer;
-  uint orderETA;
-  uint orderDeliveryTime;
-  bool delivered;
   bool ordered;
-  bool cancelled;
-  uint extraTimeAllowance;
-  uint cost;
-  function order (uint eta) LARVA_DEA_1_handle_after_order__no_parameters LARVA_ContractIsEnabled payable public {
-    require(msg.value >= cost);
-    require(!ordered);
-    customer = msg.sender;
-    orderETA = eta;
+  bool delivered;
+  uint value = 1 ether;
+  address buyer;
+  function order (uint _eta, address _buyer, string memory _address) LARVA_DEA_1_handle_after_order__no_parameters LARVA_ContractIsEnabled public {
+    require(!ordered && msg.value == value);
     ordered = true;
+    buyer = _buyer;
   }
-  function delivery () LARVA_ContractIsEnabled public {
-    require(msg.sender == customer);
-    require(ordered && !delivered);
+  function deliver (address _signer, string memory _address) LARVA_DEA_1_handle_after_deliver__no_parameters LARVA_ContractIsEnabled public {
+    require(!delivered);
     delivered = true;
-    orderDeliveryTime = now;
   }
-  function requestRefund () LARVA_DEA_1_handle_after_requestRefund__no_parameters LARVA_ContractIsEnabled public payable {
-    require(ordered && !delivered && !cancelled);
-    require(now - orderETA > 5 days);
-    transferTo(cost);
-    cancelled = true;
-  }
-  function transferTo (uint val) LARVA_ContractIsEnabled public payable {
-    require(msg.sender == address(this));
-    customer.call.value(val);
+  function complain () LARVA_ContractIsEnabled public {
+    require(msg.sender == buyer && !delivered);
   }
 
 }

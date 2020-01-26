@@ -9,9 +9,8 @@ contract LARVA_SmartAuctionHouse {
   }
   modifier LARVA_DEA_2_handle_after_auctionOffItem__parameters__offerID__startingOffer (uint _offerID, uint _startingOffer) {
     if ((LARVA_STATE_2 == 0) && (areAnyUnfullfilled(msg.sender) && attemptsBeforeFullfillment[msg.sender] < 3)) {
-      LARVA_STATE_2 = 1;
+      LARVA_STATE_2 = 0;
       attemptsBeforeFullfillment[msg.sender]++;
-      LARVA_reparation();
     } else {
       if ((LARVA_STATE_2 == 0) && (areAnyUnfullfilled(msg.sender) && attemptsBeforeFullfillment[msg.sender] > 3)) {
         LARVA_STATE_2 = 1;
@@ -41,7 +40,7 @@ contract LARVA_SmartAuctionHouse {
     _;
   }
   modifier LARVA_DEA_1_handle_after_makeOffer__parameters__offer (uint _offer) {
-    if ((LARVA_STATE_1 == 0)) {
+    if ((LARVA_STATE_1 == 1)) {
       LARVA_STATE_1 = 1;
       timeSinceLastOffer = now;
     }
@@ -181,7 +180,7 @@ contract LARVA_SmartAuctionHouse {
     (address bidder, ) = (getItemWinningOffer(_id));
     return bidder;
   }
-  function getItemWinningOFfer (uint _id) LARVA_ContractIsEnabled public returns (uint) {
+  function getItemWinningOffer (uint _id) LARVA_ContractIsEnabled public returns (uint) {
     (, uint winningOffer) = (getItemWinningOffer(_id));
     return winningOffer;
   }
