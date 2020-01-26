@@ -1,8 +1,11 @@
 This folder contains several Solidity smart contracts and specifications for them, intended both as use cases for users of contractLarva and to serve as a test suite for contributors to contractLarva.
 
 Each folder __\Name__ is of the following form:
+
     -__contractLarva\use-cases\Name\Name.sol__ : The original smart contract.
+
     -__contractLarva\use-cases\Name\NameSpec.dea__: The contractLarva specification for the smart contract.
+    
     -__contractLarva\use-cases\Name\MonitoredName.sol__: The smart contract monitored with the specification.
 
 A note is that some of the examples may be verifiable by hand or by some light static analysis, while others actually functionality to the smart contract. In contractLarva these are all monitored at runtime, making it less than ideal for statically verifiable use cases. We suggest performing static analysis through other means to reduce runtime overheads.
