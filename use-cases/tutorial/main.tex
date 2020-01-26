@@ -1,0 +1,1032 @@
+\documentclass{article}
+\let\ifluatex\relax
+\usepackage{todonotes}
+\usepackage{xspace}
+\usepackage{url}
+\usepackage{listings}
+\usepackage{geometry}
+\usepackage{enumitem} 
+\geometry{a4paper, margin=1in}
+\usepackage{inconsolata}
+
+\usepackage{hyperref}
+\usepackage[tight]{minitoc}
+
+\input{solidity-latex-highlighting}
+\input{dea-latex-highlighting}
+\lstset{
+ basicstyle=\ttfamily%, columns=fullflexible
+}
+
+\usepackage{fancyvrb}
+
+\newcommand{\contractlarva}{\textsc{contractLarva}\xspace}
+\newcommand{\keyword}[1]{\textit{$\langle$#1$\rangle$}}
+\newcommand{\tildearrow}{{\raise.37ex\hbox{$\scriptstyle\mathtt{\sim}$}}\hspace{-0.08cm}>\xspace}
+
+\newcommand{\placeholder}[1]{\mbox{$\langle$\textit{#1}$\rangle$}}
+
+\begin{document}
+\title{\contractlarva v0.2$\alpha$\\Tutorial}
+\author{Shaun Azzopardi\\\texttt{shaun.azzopardi@um.edu.mt}}
+\date{19 November 2019}
+\maketitle
+
+
+%\begin{center}
+% \begin{tabular}{|lll|}\hline\qquad&&\qquad\\
+%  &\begin{minipage}{0.8\textwidth}
+%   \emph{This is an alpha version of \contractlarva. If you are using the tool on smart contracts which will be deployed on Ethereum, it is recommended that you inspect the code created by the tool before deployment. The authors accept no responsibility of any losses, direct or otherwise, incurred due to the use of the tool.}
+%  \end{minipage}&\\&&\\
+% \hline\end{tabular} 
+%\end{center}
+
+\begin{abstract}
+This document illustrates \contractlarva through several use-cases. %\todo{maybe \contractlarva as a tool should include an option that gives certain guarantees, e.g. in verification mode we are guaranteed the smart contract behaviour is not changed, in enforcement mode we are guaranteed that only bad behaviour is prevented, while in adaptivity mode we have no guarantees.}
+\end{abstract}
+
+\tableofcontents
+
+ \section{Overview}
+ 
+ Smart contracts are programs, and like all programs they have a propensity for bugs and unintended behaviour, motivating the need for methods to detect and handle such behaviour. \contractlarva is one such approach that uses runtime monitors to detect and deal with these bugs. Moreover, \contractlarva can be used to adapt the behaviour of a smart contract, allowing a developer to develop smart contracts, or at least parts of a smart contract, using an event- and automata-based specification language. In this document we instead discuss several use cases, to illustrate the use and power of \contractlarva. 
+ 
+ This document is not intended to be an introduction to \contractlarva and its syntax, which we assume the reader is familiar with. For that purpose read the \contractlarva documentation at \url{https://www.github.com/gordonpace/contractlarva/docs/main.pdf}. 
+% We consider three types of uses for \contractlarva: (i) as a \emph{runtime verifier}, where bad behaviour is detected at runtime; (ii) as a \emph{runtime enforcer} where bad behaviour at runtime is detected and voided, ensuring all the successful behaviour of a smart contract is always compliant; and (iii) as a \emph{runtime adaptor} that can modify the behaviour of the smart contract.
+
+
+  \subsection{Background}
+  
+  Here we discuss and motivate several general areas of applicability \contractlarva, including runtime verification, enforcement, and behavioural model synthesis. The use cases considered fall to different degrees under these areas.
+
+% \subsubsection{Runtime Verification -- {\large Verifying Compliance with Specifications}}
+% \label{s:verif}
+
+  The primary motivation for \contractlarva is \textbf{runtime verification}. Verification is an approach to ensure well-behaved programs, by checking that the program is compliant with a specification. \contractlarva is a tool for runtime verification of smart contracts, allowing behaviour recorded on the blockchain, relative to one smart contract, to be given a verdict (satisfying or violating) at runtime. 
+  
+  Ideally smart contracts are verified correct before they are deployed to the blockchain. However, this may not always be possible, either because the problem is too hard or because it involves interaction with other systems. Consider that a smart contract may be used to record real-life events, e.g. a courier service may allow a delivery person to signal delivery though an appropriate smart contract function. A specification can specify bad traces of these real-life events, e.g. we may specify that an item should not be delivered if it was not ordered. Such a smart contract can easily be designed to be compliant with this specification, however then it is no longer in synch with the real-world if a violation occurs, e.g. if the smart contract simply does not allow a delivery to be recorded (i.e. \texttt{revert} is called) without a prior order then it may not maintain correct stock records. This may affect compliance with other aspects of the desired behaviour of the smart contract. 
+  
+  Then, a specification may not necessarily simply be about a smart contract on its own, but also about its interaction with an outside system (e.g. the real-world). For these kinds of specifications methods based on \textbf{static code analysis should fail}: static compliance with such a specification would in fact be evidence in favor of buggy behaviour. On the other hand methods based on runtime verification allow us to monitor for these violations, without changing the behaviour of the smart contract. This is essential for smart contracts that need to synchronize with other uncontrollable systems. \contractlarva is an ideal tool for this, allowing us to detect these violations at runtime.
+  
+%   \subsubsection{Runtime Enforcement -- {\large Enforcing Compliance with Specifications}}
+%   \label{s:enforce}
+   
+   Not all smart contracts require synchronicity with other systems, but may instead be standalone systems. In this case we may be able to check for compliance with a specification using static code analysis. Runtime verification is also an option, however gas concerns come into play. Consider that given a smart contract that implements a certain specification, and we verify this at runtime by interleaving the same smart contract with the specification, then we are replicating work. This replication may allow us to identify certain bugs in the implementation, which is useful. While replication of the same logic makes the system more robust and trustworthy. However replication increases the amount of gas used by transactions. Using a smart contract instrumented with a specification for \textbf{testing} purposes can also be useful and is a situation where gas concerns do not come into play. 
+   
+   Another approach is to use \contractlarva as part of the software engineering process, in a \textbf{model-driven development} manner. In other words, a developer can use \contractlarva to synthesize automatically certain business logic from a specification. This ensures that the specification is being \textbf{enforced at runtime}, that is the instrumented smart contract is correct\footnote{Modulo the correctness of the implementation of \contractlarva and of the used Solidity compiler.}.
+   
+   Another interesting use case involves \textbf{proxy smart contracts}. Consider that a deployed smart contract is immutable, however mutability can be simulated by introducing a proxy smart contract that maintains a record of the current implementation address and passes any function call to that address. In this way the behaviour of the proxy smart contract wholly depends on which address its implementation variable points to at runtime, which can be changed. \contractlarva can be used to enforce a certain specification on the proxy smart contract, ensuring that although the implementation changes at runtime its behaviour still remains within certain boundaries.
+   
+%   \todo{put reference to use cases in background, according to topic. (e.g. courier service is associated with verification)}
+   
+   
+   
+    
+
+   
+  \section{Use Cases}
+  
+      \subsection{Use Case Repository}
+      
+      The use cases we consider can all be found at \url{https://github.com/gordonpace/contractLarva/tree/master/use-cases}. They all follow the following file structure: 
+      \begin{enumerate}
+       \item \texttt{<name>/<name>.sol}: The smart contract implementing some business logic.
+       \item \texttt{<name>/<name>Spec.dea}: A specification of an aspect of the business logic, possibly including some business logic transforming the behaviour of the smart contract.
+       \item \texttt{<name>/<name>Monitored.sol}: The smart contract after being instrumented/wrapped with the specification.
+      \end{enumerate}
+       
+  
+%  One of the benefits of a distributed ledger technology is that it provides for immutable transactions that once recorded to the blockchain cannot be modified. 
+%  We discuss two use-cases falling under this motivation: (i) a courier service contract; and a (ii) procurement contract.
+  
+%use cases with real world event that cannot be prevented
+
+%  \subsection{Checking Compliance with a Behavioural Contract}
+   \subsection{Monitoring for Real-World Violations in a Courier Service} 
+   
+%   One of the benefits of a distributed ledger technology is that it provides for immutable transactions that once recorded to the blockchain cannot be modified. This is the ideal ecosystem on which to implement a system that relies 
+
+    \texttt{<name>:} \verb+CourierService+\\
+   
+    Given the immutable nature of blockchain transactions, a smart contract can be used to allow for dependable record-keeping. This can be to keep track of orders delivered by a courier service. Listing.~\ref{code:courierservice} illustrates such a smart contract, where an order and delivery can be recorded to the blockchain using appropriate functions. 
+   
+    \small\begin{lstlisting}[language=Solidity,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,label={code:courierservice}]
+contract CourierService{
+  bool ordered;
+  bool delivered;
+  
+  function order(uint _eta, address _buyer, string memory _address) public{
+    require(!ordered);
+    ordered = true;
+  }
+  
+  function deliver(address _signer, string memory _address) public{
+    require(!delivered);
+    delivered = true;
+  }
+}
+    \end{lstlisting}\normalsize
+  
+  This smart contract only does basic validation, allowing an order to be ordered only once, and a delivery to be delivered only once. 
+  
+  \contractlarva can be used to specify more sophisticated business logic, e.g. in Listing.~\ref{dea:courierservice} we specify that an order cannot be delivered before being ordered (see lines 17 and 23), and that an order should be delivered within the expected estimated time of arrival, and at the appropriate address (see lines 20 and 25).
+
+  
+  \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:courierservice}]
+monitor CourierService{
+
+  declarations {
+    string orderAddress;
+    uint orderETA;
+    
+    function stringEquality (string memory a, string memory b) public view 
+        returns (bool) {
+      return (keccak256(abi.encodePacked((a))) == keccak256(abi.encodePacked((b))) );
+    
+    }
+  }
+  
+  DEA NoDeliveryBeforeOrder {
+    states {
+      Start: initial;
+      Ordered;
+      Bad: bad;
+      Good: accept;
+    }
+
+    transitions {
+      Start -[after(order(_eta, _buyer, _address)) 
+            %$\tildearrow$% orderAddress = _address; orderETA = _eta;]-> Ordered;
+            
+      Ordered -[after(deliver(_signer, _address)) 
+            | orderETA <= now && stringEquality(_address, orderAddress)]-> Good;
+      
+      Start -[after(deliver(_signer, _address))]-> Bad;
+      
+      Ordered -[after(deliver(_signer, _address)) 
+            | orderETA > now || !stringEquality(_address, orderAddress)]-> Bad;
+    }
+  }
+}
+  \end{lstlisting}\normalsize
+  
+  
+  In this use case we are allowing for violating behaviour to be written to the blockchain, instead of failing with a \texttt{require}, since we want the smart contract to reflect the state of the real world. Instead of reverting a violation a user may query the monitored smart contract to check whether it is in a bad state. 
+  
+  A limitation of this use case is that we are limiting ourselves to only one order, rather than multiple orders. DEAs currently lack the power to specify the behaviour of each order in a multi-order smart contract. We intend to extend DEAs with this notion of \emph{typestate} in the future.
+  
+  
+   \subsection{Enforcing a Real-World Procurement Contract}
+   
+       \texttt{<name>:} \verb+ProcurementContract+\\
+   
+   A use case for blockchains and smart contracts is as the theatre wherein parties to a real-world contract interact. This allows us to enforce some aspects of the real-world contract.
+   
+   In this use-case we consider a procurement contract, i.e. a contract wherein a buyer binds themselves to buy some amount of goods from a seller, at a certain price and by a certain time. 
+   
+   Consider that the seller has presented a legal contract to the buyer, along with a smart contract which the buyer claims only allows the behaviour specified in the real-world contract. Figure.~\ref{f:legal-contract-procurement} specifies such a legal contract, while Listing.~\ref{lt:courierservice} is an extract from such a smart contract.
+   
+   
+   \begin{figure}[t]
+   \setlength{\belowcaptionskip}{-20pt}
+    \scriptsize %footnotesize
+    {\itshape
+    \begin{enumerate}
+     %\setcounter{enumi}{-1}
+     \item \label{cc:termination-clause} This contract is between \placeholder{buyer-name}, henceforth referred to as `the buyer' and \placeholder{seller-name}, henceforth referred to as `the seller'. The contract will hold until either party requests its termination.
+     \item \label{cc:contract-parameters} The buyer is obliged to order at least \placeholder{minimum-items}, but no more than \placeholder{maximum-items} items for a fixed price \placeholder{price} before the termination of this contract. 
+   %  \item $[\neg requestEnd]O(order(items) \mid max >= items >= \placeholder{minimum-items})$
+     \item \label{cc:escrow-payment-for-contract} Notwithstanding clause~\ref{cc:termination-clause}, no request for termination will be accepted before \placeholder{contract-end-date}. Furthermore, the seller may not terminate the contract as long as there are pending orders.
+   %  \item $[requestEnd \mid now < \placeholder{contract-end-date}]\bot$
+    % \item $[requestEnd_{seller} \mid orders.size() > 0]\bot$
+     \item Upon enactment of this contract, the buyer is obliged to place the cost of the minimum number of items to be ordered in escrow.
+     % \item $O(escrow(costOf(min))_{buyer});\placeholder{rest-of-contract}$
+     \item \label{cc:performance-guarantee-escrow} Upon accepting this contract, the seller is obliged to place the amount of \placeholder{performance-guarantee} in escrow, otherwise, if only a partial amount is placed, the seller is obliged to place the rest by a time period at the buyer's discretion.%the contract is terminated and the buyer's and seller's respective escrow is returned.
+     % \item $O(escrow(\placeholder{performance-guarantee}))$
+     %guaranteed by "Upon delivery, the seller receives payment of the order"
+   %  \item \label{cc:payment} Upon termination of the contract, the seller is guaranteed to have received payment covering the cost of the minimum number of items to be ordered unless less than this amount is delivered, in which case the cost of the undelivered items is not guaranteed.
+    % \item $[requestEnd \mid (deliveredItems >= \placeholder{minimum-items} \wedge \neg(paidToSeller >= (costOf(\placeholder{minimum-items})))] \bot$
+    % \item $[requestEnd \mid (deliveredItems < \placeholder{minimum-items} \wedge \neg(paidToSeller >= (costOf(\placeholder{minimum-items} - deliveredItems)))] \bot$
+     \item \label{cc:right-to-order} While the contract has not been terminated, the buyer has the right to place an order for an amount of items and a specified time-frame as long as (i) the running number of items ordered does not exceed the maximum stipulated in clause~\ref{cc:contract-parameters}; and (ii) the time-frame must be of at least 24 hours, but may not extend beyond the contract end date specified in clause~\ref{cc:contract-parameters}. 
+    % \item $P(order_{buyer}(items, inTime) \mid items.size() <= \placeholder{maximum-items} \wedge inTime < 24 hours)$
+     \item \label{cc:escrow-payment-for-order} Upon placing an order, the buyer is obliged to ensure that there is enough money in escrow to cover payment of all pending orders.
+    %  \item $[order \mid escrow_{buyer} < costOf(orders)]\bot$
+     \item Before termination of the contract, upon delivery the seller must receive payment of the order.
+   %  \item $[deliveryMadeWithPayment^N]\bot$
+   %  \item Upon termination of the contract, any undelivered orders are automatically cancelled, and the seller loses the right to receive payment for these orders.
+   %  \item $[requestEnd \mid pendingOrderCount != 0]\bot$
+     \item Upon termination of the contract, if either any orders were undelivered or more than 25\% of the orders were delivered late, the buyer has the right to receive the performance guarantee placed in escrow according to clause~\ref{cc:performance-guarantee-escrow}. %Otherwise, it is released back to the seller if the buyer does not claim it in 10 days from termination.
+    %  \item $[requestEnd \mid pendingOrderCount != 0 ]$
+    \end{enumerate}
+    }\normalsize
+    \vspace{-2ex}
+    \caption{A legal contract regulating a procurement process.}
+    \label{f:legal-contract-procurement}
+    \end{figure}
+    
+    \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,label={lt:courierservice}]
+pragma solidity ^0.4.15;
+
+
+contract Procurement {
+  enum ContractStatus { Proposed, Open, Closed }
+  enum OrderStatus { Ordered, Delivered }
+
+  struct Order {
+    bool exists;
+    uint cost;
+    OrderStatus status;
+    uint deliveryTimeDue;
+  }
+
+...
+
+  function acceptContract() public payable bySeller {
+    require(msg.value >= performanceGuarantee);
+    contractStatus = ContractStatus.Open;
+  }
+
+  function createOrder(
+    uint8 _orderNumber,
+    uint8 _orderSize,
+    uint _orderDeliveryTimeLeft
+  ) public payable byBuyer 
+  {
+    // Order does not already exist
+    require(!orders[_orderNumber].exists);
+    // Number of items ordered does not exceed maximum
+    require(itemsOrderedCount + _orderSize <= maximumItemsToBeOrdered);
+    // Order delivery deadline will not be too late
+    require(now + _orderDeliveryTimeLeft <= endOfContractTimestamp);
+
+    // Ensure there is enough money left in the contract to pay for the order
+    uint orderCost = _orderSize * costPerUnit;
+    moneyLeftInContract += msg.value;
+    require(orderCost <= moneyLeftInContract);
+    moneyLeftInContract -= orderCost;
+    
+    // Update number of items ordered
+    itemsOrderedCount += _orderSize;
+
+    // Update contract status
+    pendingOrderCount++;
+    pendingOrderCost += orderCost;
+
+    // Record the order
+    orders[_orderNumber] = Order(true, orderCost, OrderStatus.Ordered, now+_orderDeliveryTimeLeft);
+  }
+
+}
+    \end{lstlisting}\normalsize
+    
+   Checking the smart contract is always compliant with the required behaviour is a hard problem. Instead, \contractlarva can be used to enforce the behaviour on the execution trace at runtime, simply through building a formal representation of the legal contract. 
+   
+   For example, Listing.~\ref{dea:courierservice1} specifies formally the second clause of Figure.~\ref{f:legal-contract-procurement}. Consider that with Line 20 we are keeping count of the number of orders, while in Line 21 (Line 22) we are ensuring that the minimum (maximum) items to be ordered is constant and is not modified while the contract is running. With Lines 23 and 24 we ensure that just before the contract is terminated enough items have been ordered, otherwise termination is reverted (note Lines 6-8). 
+     
+     \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:courierservice1}]
+monitor Procurement{
+  declarations {
+    uint orderCount;
+  }
+
+  reparation {
+    revert(); 
+  }
+
+  //The buyer is obliged to order at least <minimum-items>, but no more than <maximum-items> items for a fixed price <price> before the termination of this contract.
+  DEA EnoughItemsOrdered{
+    states{
+      DuringContract: initial;
+      RangesChanged: bad;
+      OutsideOfRange: bad;
+      EnoughItems: accept;
+    }
+
+    transitions{
+      DuringContract -[after(createOrder(_orderNumber, _orderSize, _orderDeliveryTimeLeft)) | %$\tildearrow$% orderCount += _orderNumber;]-> DuringContract;
+      DuringContract -[minimumItemsToBeOrdered@(LARVA_previous_minimumItemsToBeOrdered != minimumItemsToBeOrdered)]-> RangesChanged;
+      DuringContract -[maximumItemsToBeOrdered@(LARVA_previous_minimumItemsToBeOrdered != minimumItemsToBeOrdered)]-> RangesChanged;
+      DuringContract -[after(terminateContract()) | orderCount < minimumItemsToBeOrdered || orderCount > maximumItemsToBeOrdered]-> OutsideOfRange;
+      DuringContract -[after(terminateContract()) | orderCount >= minimumItemsToBeOrdered && orderCount <= maximumItemsToBeOrdered]-> EnoughItems;
+    }
+  }
+}
+    \end{lstlisting}\normalsize
+    
+    The buyer can request the smart contract be instrumented with such a DEA to ensure they can trust the smart contract at runtime.
+    
+    Moreover, DEAs can be used to deal with possible edge cases. For example Listing.~\ref{dea:courierservice2} specifies that any ether left in the contract after termination should be transferred to the contract's deployer. Note how Lines 8-10 ensure that when a contract is initialised we keep track of the contract's deployer in the \texttt{mediator} variable. Line 25 specifies that if the contract ends with some balance then we can transition to a bad state, which activates the reparation specified by Lines 12-14, i.e. that the mediator is transferred the remaining balance.
+    
+    \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:courierservice2}]
+    monitor Procurement{
+      declarations {
+        address mediator;
+        uint orderCount;
+        bool noEtherAfterTerminationBadStateReached;
+      }
+    
+      initialisation {
+        mediator = address(uint160(msg.sender));
+      }
+    
+      reparation {
+        noEtherAfterTerminationBadStateReached ? mediator.transfer(this.balance) : (); 
+      }
+    
+      //When a contract terminates there should not be any ether left in its balance.
+      DEA NoEtherAfterTermination{
+        states{
+          DuringContract: initial;
+          EndedWithBalance: bad;
+          EndedWithoutBalance: accept;
+        }
+    
+        transitions{
+          DuringContract -[after(terminateContract) | this.balance != 0 %$\tildearrow$% noEtherAfterTerminationBadStateReached = true;]-> EndedWithBalance;
+          DuringContract -[after(terminateContract) | this.balance == 0]-> EndedWithoutBalance;
+        }
+      }
+        \end{lstlisting}\normalsize
+    
+
+   \subsection{Enforcing an ERC20 Specification}
+   
+          \texttt{<name>:} \verb+FixedSupplyToken+\\
+   
+   A common use for blockchains is to manage cryptocurrencies. In fact smart contracts are used to implement wallets (usually following some conventional interface such as ERC20 in Listing.~\ref{code:erc20interface}), allowing users to own a certain amount of tokens and to use them. The design and implementation of these wallets is critical, in fact in the past bugs in wallet implementations have led to a significant amount of tokens with real-world value being lost (e.g. the Parity bug). \contractlarva monitors implementing aspects of the expected behaviour of a wallet can serve as a further defense against such bugs and other attacks.
+   
+       \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={code:erc20interface}]
+        // ----------------------------------------------------------------------------
+        // ERC Token Standard #20 Interface
+        // https://github.com/ethereum/EIPs/blob/master/EIPS/eip-20-token-standard.md
+        // ----------------------------------------------------------------------------
+        interface ERC20TokenImplementation {
+         function totalSupply () external constant returns (uint);
+         function balanceOf (address tokenOwner) external constant returns (uint balance);
+         function allowance (address tokenOwner, address spender) external constant returns (uint remaining);
+         function transfer (address caller, address to, uint tokens) external returns (bool success);
+         function approve (address caller, address spender, uint tokens) external returns (bool success);
+         function transferFrom (address caller, address from, address to, uint tokens) external returns (bool success);
+         event Transfer (address indexed from, address indexed to, uint tokens);
+         event Approval (address indexed tokenOwner, address indexed spender, uint tokens);
+        
+        }
+            \end{lstlisting}\normalsize
+   
+   Here we consider a fixed supply token wallet, where the wallet is initialised with a certain amount of tokens that should not change at runtime. Looking at the implementation of the \texttt{transfer} function in Listing.~\ref{code:transferfunc}, we can see that the balance of the function caller is reduced on Line 2, and the balance of the intended recipient is increased on Line 3. Note that here addition and subtraction are encoded in appropriate functions, so that \contractlarva is able to instrument them.
+         
+         
+             \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={code:transferfunc}]
+    function transfer(address to, uint tokens) onlyOwner public returns (bool success) {
+        balances[msg.sender] = sub(balances[msg.sender],tokens);
+        balances[to] = add(balances[to],tokens);
+        emit Transfer(caller, to, tokens);
+        return true;
+    }
+                  \end{lstlisting}\normalsize
+
+    One way to ensure there is a fixed supply of tokens is to simply check that any addition to any user's balance is paired with a subtraction from another user's balance. Listing.~\ref{dea:fixedsupplytoken} encodes this logic. 
+    
+        \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:fixedsupplytoken}]
+monitor FixedSupplyToken{
+  
+    declarations{
+        uint currentTokens;
+    }
+    
+    reparation{
+        revert();
+    }
+
+    //This property checks that any addition to the balance must be coupled immediately with a subtraction,
+    //ensuring tokens are only moved around, while ensuring that any change is immediately (modulo one step) reflected in the total sum.
+    DEA AdditionOfBalanceMustBeAccompaniedBySubstituion{
+        states{
+            Before: initial;
+            StartTransfer;
+            SubAfterAdd;
+            AddAfterSub;
+            EndTransfer;
+            UnMatchedModification: bad;
+        }
+    
+        transitions{
+            Before -[before(transfer(caller, to, tokens)) | %$\tildearrow$% currentTokens = tokens;]-> StartTransfer;
+            
+            StartTransfer -[after(add(a, tokens)) | currentTokens == tokens]-> SubAfterAdd;
+            StartTransfer -[after(add(a, tokens)) | currentTokens != tokens]-> UnMatchedModification;
+            StartTransfer -[after(sub(a, tokens)) | currentTokens == tokens]-> AddAfterSub;
+            StartTransfer -[after(sub(a, tokens)) | currentTokens != tokens]-> UnMatchedModification;
+            
+            SubAfterAdd -[after(sub(a, tokens)) | currentTokens == tokens]-> EndTransfer;
+            SubAfterAdd -[after(sub(a, tokens)) | currentTokens != tokens]-> UnMatchedModification;
+            SubAfterAdd -[after(add(a, tokens))]-> UnMatchedModification;
+            
+            SubAfterAdd -[after(add(a, tokens)) | currentTokens == tokens]-> EndTransfer;
+            SubAfterAdd -[after(add(a, tokens)) | currentTokens != tokens]-> UnMatchedModification;
+            SubAfterAdd -[after(sub(a, tokens))]-> UnMatchedModification;
+        
+            EndTransfer -[after(transfer(caller, to, tokens)) | %$\tildearrow$% currentTokens = 0;]-> Before;
+            SubAfterAdd -[after(transfer(caller, to, tokens))]-> UnMatchedModification;
+            AddAfterSub -[after(transfer(caller, to, tokens))]-> UnMatchedModification;
+        }
+    }
+}
+            \end{lstlisting}\normalsize
+            
+            Consider that the DEA is a functional specification for the \texttt{transfer} function. That is, it is activated when a transfer starts (Line 24), and should give a verdict or restart after the transfer ends (Line 39). Consider also that an appropriate implementation may either first reduce the balance of the sender and the increase the balance of the recipient, or vice-versa. Similarly the specification is symmetric (see states on Line 17 and Line 18, and transitions on Lines 26-37). The specification first keeps track of the number of tokens to be transferred (see the variable \texttt{currentTokens} declared on Line 4 and the action part of the transition on Line 24). Then, any addition or subtraction must be equivalent to this value (see Line 26), while any divergence leads to a violation (see Line 27). If the transfer ends before a pair of addition and subtraction operations are performed then th monitor ends in a bad state (see Lines 40 and 41).
+            
+   \subsection{Enforcing a Casino Specification}
+    \texttt{<name>:} \verb+Casino+\\
+ %   \subsection{Enforcing Call Well-Ordering}
+ 
+ Smart contracts have been used to allow for people to bet a certain amount of crypto-currency tokens, which allows for users who guessed the correct outcome to be automatically rewarded. This use case considers such a smart contract, which can be found in Listing.~\ref{code:casino}.
+  
+  \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={code:casino}]
+pragma solidity ^0.5.11;
+
+contract Casino{
+
+    mapping(uint => mapping (uint => address payable[])) placedBets;
+    mapping(uint => mapping(address => uint)) potShare;
+
+    uint[] numbersGuessed;
+    
+    uint pot;
+
+    uint tableID;
+    uint tableOpenTime;
+
+    address owner;
+
+    constructor() public{
+        owner = msg.sender;
+    }
+
+    function openTable() public{
+        require(msg.sender == owner);
+        require(tableOpenTime == 0);
+
+        tableOpenTime = now;
+        tableID++;
+    }
+
+    function closeTable() public{
+        require(msg.sender == owner);
+        require(pot == 0);
+
+        delete numbersGuessed;
+    }
+
+    function timeoutBet() public{
+        require(msg.sender == owner);
+        require(now - tableOpenTime > 60 minutes);
+        require(pot != 0);
+        
+        for (uint i = 0; i < numbersGuessed.length; i++) {
+            uint l = placedBets[tableID][numbersGuessed[i]].length;
+
+            for (uint j = 0; j < l; j++) {
+                address payable better = placedBets[tableID][numbersGuessed[i]][l];
+                better.transfer(potShare[tableID][better]);
+                delete placedBets[tableID][numbersGuessed[i]];
+            }
+        }
+
+        closeTable();
+    }
+
+    function placeBet(uint guessNo) payable public{
+        require(msg.value > 1 ether);
+
+        potShare[tableID][msg.sender] += msg.value;
+        placedBets[tableID][guessNo].push(msg.sender);
+        numbersGuessed.push(guessNo);
+        pot += msg.value;
+    }
+
+    //we assume owner is trusted
+    function resolveBet(uint _secretNumber) public{
+        require(msg.sender == owner);
+
+        uint l = placedBets[tableID][_secretNumber].length;
+        if(l != 0){
+            for (uint i = 0; i < l; i++) {
+                placedBets[tableID][_secretNumber][i].transfer(pot/l);
+            }
+        }
+
+        pot = 0;
+
+        closeTable();
+    }
+}
+      \end{lstlisting}\normalsize
+      
+      A user may not trust such a smart contract enough to handle their money. The owner may increase such confidence by instrumenting the smart contract with appropriate specifications, while the user may also instrument the smart contract and test the resulting specification on a testnet.
+      
+      In Listing.~\ref{dea:casino} we consider two properties the casino should have: (i) when there is an ongoing bet (i.e. the table is open) the running pot should not be reduced but only increase; and (ii) the table cannot be closed during a bet.
+      
+        \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:casino}]
+monitor Casino{
+
+    declarations{
+        uint total;
+    }
+
+    DEA NoReduction {
+        states {
+            TableOpen: initial;
+            TableClosed: accept;
+            BetPlaced;
+            PotReduced: bad;
+        }
+        transitions {
+            TableOpen -[after(closeTable) | pot == 0 ]-> TableClosed;
+            TableOpen -[after(placeBet(_value)) | _value <= pot %$\tildearrow$% total += _value;]-> BetPlaced;
+            BetPlaced -[after(timeoutBet)]-> TableOpen;
+            BetPlaced -[after(resolveBet)]-> TableOpen;
+            BetPlaced -[pot@(LARVA_previous_pot > pot)]-> PotReduced;
+        }
+    }
+    
+    DEA OpenUntilResolution {
+        states {
+            TableClosed: initial;
+            TableOpen;
+            BetPlaced;
+            TableCloseDuringBet: bad;
+        }
+        transitions {
+            TableClosed -[after(openTable)]-> TableOpen;
+            TableOpen -[after(closeTable)]-> TableClosed;
+            TableOpen -[after(placeBet)]-> BetPlaced;
+            BetPlaced -[after(resolveBet)]-> TableOpen;
+            BetPlaced -[after(timeoutBet)]-> TableOpen;
+            BetPlaced -[after(closeTable)]-> TableCloseDuringBet;
+        }
+    }
+}
+        \end{lstlisting}\normalsize
+        
+        
+ \subsection{Safe Mutability of an ERC20 Wallet}
+ 
+        \texttt{<name>:} \verb+ERC20Interface+\\
+ 
+ Smart contracts are immutable, however a proxy design pattern can be used to simulate mutability, by having a proxy smart contract act as the main entry-point, which passes on function calls to different versions of the smart contract implementing the main business logic. This can be unsafe, since the business logic may mutate without any notice. A use-case for \contractlarva is to limit the mutability of the business logic by enforcing a certain specification on the proxy smart contract.
+ 
+ Consider an ERC20 wallet, which has the interface specified in Listing.~\ref{code:erc20interface}. A proxy smart contract would be similar to the smart contract extract in Listing.~\ref{code:erc20behavinteface}.
+      
+  \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={code:erc20behavinteface}]
+  contract ERC20Interface{
+    
+    ERC20TokenImplementation impl;
+    address owner;
+  
+    constructor(ERC20TokenImplementation _impl, address _owner) public{
+      impl = _impl;
+      owner = _owner;
+    }
+    
+    function updateImplementation(address newImpl) public{
+      require(msg.sender == owner);
+      impl = ERC20TokenImplementation(newImpl);
+    }
+    
+    function transfer(address to, uint tokens) public returns (bool success){
+      return impl.transfer(msg.sender, to, tokens);  
+    }
+    ...
+  }
+      \end{lstlisting}\normalsize
+      
+  The DEA in Listing.~\ref{dea:erc20}, when weaved into Listing.~\ref{code:erc20behavinteface} enforces the well-behaviour of the \texttt{transfer} function. In effect this sets pre- and post-conditions for calls of the function, and disallow re-entrancy into the proxy smart contract from the concrete implementation. We can create similar specifications for the other non-pure functions.
+  
+      
+  \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:erc20}]
+  monitor ERC20Interface{
+  	declarations {
+  		uint transferPreFrom;
+  		uint transferPreTo;
+  
+  		uint transferFromPreFrom;
+  		uint transferFromPreTo;
+  		uint preAllowance;
+  
+  	}
+  
+  	reparation {
+  		revert();
+  	}
+  
+  	DEA TransferWellBehaviour {
+  		states {		
+  			Before: initial;
+  			After;
+  			Bad: bad;
+  		}
+  		
+  		transitions {
+  		
+  			Before -[before(transfer(to, tokens)) | %$\tildearrow$% {transferPreFrom = balanceOf(msg.sender); transferPreTo = balanceOf(to);}]-> After;	
+  
+  			After -[before(transfer(to, tokens))]-> Bad;
+  			
+  			After -[after(transfer(to, tokens)) | transferPreFrom < tokens && (balanceOf(msg.sender) != transferPreFrom || balanceOf(to) != transferPreTo)]-> Bad;
+  
+  			After -[after(transfer(to, tokens)) | transferPreFrom < tokens && (balanceOf(msg.sender) == transferPreFrom && balanceOf(to) == transferPreTo)]-> Before;
+  
+  			After -[after(transfer(to, tokens)) | transferPreFrom >= tokens && (balanceOf(msg.sender) != (transferPreFrom - tokens) || balanceOf(to) != (transferPreTo - tokens))]-> Bad;
+  
+  			After -[after(transfer(to, tokens)) | transferPreFrom >= tokens && (balanceOf(msg.sender) == (transferPreFrom - tokens) && balanceOf(to) == (transferPreTo - tokens))]-> Before;	
+  		}
+  	}
+  }
+      \end{lstlisting}\normalsize
+ 
+ \subsection{Adding Insurance Logic to a Courier Service}
+         \texttt{<name>:} \verb+InsuredCourierService+\\
+         
+ We have used \contractlarva to enforce specifications by reverting bad behaviour, however we can go a step further by using it to add more sophisticated logic. 
+ 
+ A particular use-case is the addition of insurance logic. Consider the courier service contract in Listing.~\ref{code:courierservice1}, extended with a function \texttt{complain}, wherein the buyer can complain if the order has not yet been delivered.
+ 
+ 
+     \small\begin{lstlisting}[language=Solidity,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,label={code:courierservice1}]
+ contract CourierService{
+   bool ordered;
+   bool delivered;
+   uint value = 1 ether;
+   address buyer;
+   
+   function order(uint _eta, address _buyer, string memory _address) public{
+     require(!ordered && msg.value == value);
+     ordered = true;
+     buyer = _buyer;
+   }
+   
+   function deliver(address _signer, string memory _address) public{
+     require(!delivered);
+     delivered = true;
+   }
+ 
+   function complain() public{
+     require(msg.sender == buyer && !delivered);
+   }
+ }
+     \end{lstlisting}\normalsize
+   
+ In this form, the smart contract does not give any assurances about when the order will be delivered. \contractlarva can be used to encode such assurances.
+ 
+ The DEA in Listing.~\ref{dea:insurancecourier} inserts some logic before the smart contract is initialised, where it requires the \texttt{payStake} function to be called before the smart contract is enabled. Consider how if the smart contract is not delivered on time this logic pays the customer an amount of ether (specified on Line 8) to make up for the inconvenience.
+ 
+  \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:insurancecourier}]
+ monitor CourierService {
+ 
+   declarations {
+     uint orderedTime;
+     uint minimumInsuredDeliveryTime = 24*30 hours;
+ 
+     address payable private insurer_address;
+     function getStake() private returns(uint) { return value; }
+     function getInsurer() private returns(address payable) { return insurer_address; }
+     function getInsured() private returns(address payable) { return customer; }
+ 
+     enum STAKE_STATUS { UNPAID, PAID }
+     STAKE_STATUS private stake_status = STAKE_STATUS.UNPAID;
+ 
+     function payStake() payable public{
+       require (stake_status == STAKE_STATUS.UNPAID);
+       require (msg.value == getStake());
+       require (msg.sender == getInsurer());
+       stake_status = STAKE_STATUS.PAID;
+       LARVA_EnableContract();
+     }
+   }
+ 
+   initialisation {
+     insurer_address = msg.sender;
+   }
+ 
+   reparation {
+     getInsured().transfer(getStake());
+     LARVA_DisableContract();
+   }
+ 
+   satisfaction {
+     getInsurer().transfer(getStake());
+   }
+ 
+   DEA UnDelivered{
+     states{
+       Start: initial;
+       Ordered;
+       Delivered: accept;
+       Undelivered: bad;
+    }
+ 
+    transitions{
+       Start -[after(order) | %$\tildearrow$% orderedTime = now;]-> Ordered;
+       Ordered -[after(deliver) | now - orderedTime <= minimumInsuredDeliveryTime]-> Delivered;
+       Ordered -[after(deliver) | now - orderedTime >= minimumInsuredDeliveryTime]-> Undelivered;
+     }
+   }
+ }
+ \end{lstlisting}\normalsize
+ 
+ 
+ \subsection{Adding Fail-safe logic to a Multi-Owner Wallet} 
+         \texttt{<name>:} \verb+MultiOwnersWallet+\\
+
+A wallet may be owned by multiple entities rather than by a single owner, requiring sophisticated logic to orchestrate the voting process between the multiple owners.
+
+Figure.\ref{lt:multi-owner} is an extract of a multi-owner wallet, including a modifier that ensures all owners have signed off on a certain action (Line 6), a function to propose a transaction (Line 18), a transfer function that performs a transaction if all owners sign off on it (Line 24), and a function which owners can use to vote to remove owners (Line 28).
+
+  \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={lt:multi-owner}]
+  pragma solidity ^0.5.11;
+  
+  contract MultiOwners {
+ ...
+ 
+      modifier allOwners (uint _id){
+          require(owners[msg.sender]);
+          actionSignOffs[_id][msg.sender] = true;
+  
+          for(uint i = 0 ; i < ownerList.length; i++){
+              if(ownerList[i] != address(0) && !actionSignOffs[_id][ownerList[i]]){
+                  return;
+              }
+          }
+          _;
+      }
+
+      function proposeTransaction(address payable _to, uint _val) public anyOwner{
+          idTo[id] = _to;
+          idVal[id] = _val;
+          id++;
+      }
+  
+      function transfer(uint _id) allOwners(_id) public{
+          idTo[_id].transfer(idVal[_id]);
+      }
+      
+      function removeOwner(address _address) anyOwner public{
+          votesToRemove[_address][msg.sender] = true;
+          votesToRemoveKeys[_address].push(msg.sender);
+  
+          uint countInFavour = 0;
+          uint totalCount = ownerCount;
+  
+          for(uint i = 0; i < totalCount; i++){
+              if(votesToRemove[_address][votesToRemoveKeys[_address][i]]){
+                  countInFavour++;
+              }
+          }
+  
+          uint limit = 2*totalCount/3;
+  
+          if(countInFavour >= limit){
+              owners[_address] = false;
+              ownerCount--;
+              for(uint i = 0; i < ownerList.length; i++){
+                  if(ownerList[i] != address(0) && ownerList[i] == _address){
+                      ownerList[i] = address(0);
+                  }
+              }
+          }
+      }    
+  }
+ \end{lstlisting}\normalsize
+
+This smart contract represents the base functionality of the wallet, with little validation. Instead the well-behaviour of the smart contract can be specified separately using DEAs. 
+
+In Listing.~\ref{dea:multi-owner} we specify this well-behaviour, in terms of two DEAs. First we ensure that transactions started by ex-owners are not carried out, and secondly we ensure that an owner can only vote once in removing an owner, since the current implementation allows that.
+
+  \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:multi-owner}]
+  monitor MultiOwners {
+  
+      declarations{
+          mapping(uint => address) idRequestedBy;
+          mapping(address => mapping(address => bool)) votes;
+      }
+  
+      reparation {
+          revert();
+      }
+  
+      DEA IgnoreTransactionsStartedByExOwners{
+          states{
+              BeforeTransfer: initial;
+              BadTransfer: bad;
+          }
+  
+          transitions{
+              BeforeTransfer -[after(proposeTransaction(_to,_val)) | %$\tildearrow$% idRequestedBy[--id] = msg.sender;]-> BeforeTransfer;
+              BeforeTransfer -[before(transfer(_id)) | !owners[idRequestedBy[id]]]-> BadTransfer;
+          }
+      }
+  
+      DEA NeutraliseDoubleVote{
+          states{
+              BeforeVote: initial;
+              DoubleVote: bad;
+          }
+  
+          transitions{
+              BeforeVote -[after(removeOwner(_address)) | %$\tildearrow$% votes[_address][msg.sender] = true;]-> BeforeVote;
+              BeforeVote -[before(removeOwner(_address)) | votes[_address][msg.sender]]-> DoubleVote;
+          }
+      }
+  }
+ \end{lstlisting}\normalsize
+
+
+\subsection{Adding Logic to an Auction House}
+         \texttt{<name>:} \verb+SmartAuctionHouse+\\
+ 
+ Smart contracts are used to automate some part of a real-world process, ensuring that part of the process is carried according to a strict set of rules. An auction is an example of such a process that can be carried out using a smart contract and that we consider in this use case.
+ 
+ Listing.~\ref{lt:auctionhouse} is an implementation of an auction house, allowing auctions to be started (Line 33), allowing people to make offers (Line 48), the auctioneer to start calling the auction (Line 40), and to declare a winning offer (Line 56). A winner can then fulfill their offer (Line 63).
+ 
+\small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={lt:auctionhouse}]
+pragma solidity ^0.4.24;
+
+contract SmartAuctionHouse{
+
+    uint currentItem;
+    uint startingOffer;
+
+    uint currentOffer;
+    address currentWinner;
+
+    uint ticks;
+
+    mapping(uint => address) winners;
+    mapping(uint => uint) winningOffer;
+    mapping(uint => bool) fulfilled;
+
+    address owner;
+
+    function SmartAuctionHouse(){
+        owner = msg.sender;
+    }
+
+    modifier onlyOwner(){
+        require(msg.sender == owner);
+        _;
+    }
+    
+    modifier onlyOwnerOrInternal(){
+        require(msg.sender == owner || msg.sender == address(this));
+        _;
+    }
+
+    function auctionOffItem(uint _offerID, uint _startingOffer) public {
+        require(!ongoingAuction());
+
+        currentItem = _offerID;
+        startingOffer = _startingOffer;
+    }
+
+    function tick() public onlyOwner{
+        require(ongoingAuction());
+
+        ticks++;
+
+        if(ticks > 2) declareWinningOffer();
+    }
+
+    function makeOffer(uint _offer) public {
+        require(_offer > currentOffer);
+
+        currentOffer = _offer;
+        currentWinner = msg.sender;
+    }
+
+    function declareWinningOffer() public onlyOwnerOrInternal{
+        require(ticks > 2);
+
+        winners[currentItem] = currentWinner;
+        winningOffer[currentItem] = currentOffer;
+        reset();
+    }
+
+    function fulfillOffer(uint _id) payable public {
+        require(winners[_id] == msg.sender && winningOffer[_id] == msg.value && !fulfilled[_id]);
+        fulfilled[_id] = true;
+    }
+
+    function ongoingAuction() internal returns(bool){
+        return startingOffer == 0 && currentOffer == 0;
+    }
+
+    function reset() internal {
+        currentItem = 0;
+        startingOffer = 0;
+        currentOffer = 0;
+        currentWinner = address(0);
+        ticks = 0;
+    }
+
+    function getItemWinningOffer(uint _id) public returns(address,uint){
+        return (winners[_id], winningOffer[_id]);
+    }
+
+    function getItemWinningBidder(uint _id) public returns(address){
+        (address bidder, ) = getItemWinningOffer(_id);
+        return bidder;
+    }
+
+    function getItemWinningOffer(uint _id) public returns(uint){
+        (, uint winningOffer) = getItemWinningOffer(_id);
+        return winningOffer;
+    }
+}
+\end{lstlisting}\normalsize
+
+In Listing.~\ref{dea:auctionhouse} we define monitor specifications that check: (i) that only one auction is held at a time, while any auction is automatically ended if fifteen minutes have passed since the last offer; and (ii) any winning bidder is obliged to fulfill their offer by canceling their offer if they attempt to bid more than three times.
+
+For the first property (Lines 42-56), we transition to the \texttt{AuctionStart} start when an auction starts (Line 50), while anytime an offer is made the last offer time variable (declared on Line 9) is updated (Line 51). When a winner is declared the monitor transitions back to the initial state (Line 52). Any attempt to start an auction while another is running and the time since last offer is less than fifteen minutes causes a transition to a bad state (Line 53), which means the call fails (Lines 36-38). If however the time since the last offer is more or equal to fifteen minutes the contract is forced to declare a winner (see Lines 54 and Lines 11-15).
+
+For the second property (Lines 61-75), we only have an initial and bad state. For this property we require a mapping to keep track of unfulfilled offers (defined on Line 4). When a winning offer is declared the offer is marked as unfulfilled (Line 68), while upon fulfillment it is marked as fulfilled (Line 69). When a bidder makes an offer and has no unfulfilled bids (checked with the function defined on Lines 25-30) then the offer is allowed treated normally (Line 70), while if there are unfulfilled offers and the bid attempt counter for the bidder is less than three, the bid attempt counter for the bidder is increased (Line 71). If it is equal or more than three then any unfulfilled bids are canceled and the bid canceled (see Line 72, using the function defined on Lines 17-22). If the user attempts to fulfill a bid that has been canceled the property marks a violation (see Line 73) and cancels the transaction (Lines 36-38).
+ 
+\small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:auctionhouse}]
+monitor SmartAuctionHouse{
+
+    declarations{
+        mapping(address => uint) attemptsBeforeFullfillment;
+        mapping(uint => bool) cancelledItems; 
+        mapping(uint => bool) unfulfilled; 
+        mapping(address => uint[]) wonBids; 
+
+        uint timeSinceLastOffer;
+
+        function forceDeclareWinner() private{
+            ticks = 3; 
+            declareWinningOffer(); 
+            timeSinceLastOffer = 0;
+        }
+        
+        function cancelAnyUnfulfilledBids(address _bidder) private{
+            for(uint i = wonBids[_bidder].length - 1; i >= 0; i--){
+                if(unfulfilled[wonBids[_bidder][i]]){
+                    cancelledItems[wonBids[_bidder][i]] = false;
+                }
+            }
+        }
+
+        function areAnyUnfullfilled(address _bidder) private returns(bool){
+            for(uint i = wonBids[_bidder].length - 1; i >= 0; i--){
+                if(unfulfilled[wonBids[_bidder][i]]){
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
+
+    reparation{
+        revert();
+    }
+
+    //auctionOffItem cannot occur subsequently without declareWinningOffer in between
+    //if 15 minutes have passed since the last offer then automatically declare the winner
+    DEA OneAuctionAtATime{
+        states{
+            NoOngoingAuction: initial;
+            AuctionStart;
+            AuctionAttempted: bad;
+        }
+
+        transitions{
+            NoOngoingAuction -[after(auctionOffItem(_offerID, _startingOffer))]-> AuctionStart;
+            AuctionStart -[after(makeOffer(_offer)) | %$\tildearrow$% timeSinceLastOffer = now;]-> AuctionStart;
+            AuctionStart -[after(declareWinningOffer())]-> NoOngoingAuction;
+            AuctionStart -[before(auctionOffItem(_offerID, _startingOffer)) | now - timeSinceLastOffer < 15 minutes]-> AuctionAttempted;
+            AuctionStart -[before(auctionOffItem(_offerID, _startingOffer)) | now - timeSinceLastOffer >= 15 minutes %$\tildearrow$% forceDeclareWinner();]-> AuctionStart;
+        }
+    }
+
+    //if winning bid is not fulfilled within a day's time
+    // then the bidder is not allowed to bid on other items
+    //      and any attempt to bid more than 3 times before paying then the winning bid is cancelled 
+    DEA WinningBidsMustBeFulfilledOrCancelled{
+        states{
+            Initial: initial;
+            UnfulfilledBids: bad;
+        }
+
+        transitions{
+            Initial -[before(declareWinningOffer()) | %$\tildearrow$% unfulfilled[currentItem] = true;]-> Initial;
+            Initial -[after(fulfillOffer(_id)) | %$\tildearrow$% unfulfilled[_id] = false;]-> Initial;
+            Initial -[before(makeOffer(_offer)) | !areAnyUnfullfilled(msg.sender) %$\tildearrow$% attemptsBeforeFullfillment[msg.sender] = 0;]-> Initial;
+            Initial -[before(makeOffer(_offer)) | areAnyUnfullfilled(msg.sender) && attemptsBeforeFullfillment[msg.sender] < 3 %$\tildearrow$% attemptsBeforeFullfillment[msg.sender]++;]-> Initial;
+            Initial -[before(makeOffer(_offer)) | areAnyUnfullfilled(msg.sender) && attemptsBeforeFullfillment[msg.sender] >= 3 %$\tildearrow$% cancelAnyUnfulfilledBids(msg.sender); return;]-> UnfulfilledBids;
+            Initial -[before(fulfillOffer(_id)) | cancelledItems[_id]]-> UnfulfilledBids;
+        }
+    }
+}
+\end{lstlisting}\normalsize
+\end{document}
