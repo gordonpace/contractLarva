@@ -29,10 +29,12 @@ import Solidity
 
 import Debug.Trace
 
-instrumentContractSpecification :: ContractSpecification -> Instrumentation
-instrumentContractSpecification monitor =
+instrumentContractSpecification :: ContractSpecification -> Bool -> Instrumentation
+instrumentContractSpecification monitor inliningFlag =
   -- (i)  Rename contract to LARVA_contract
     renameContract (contract, contract') |>
+        --rename old-style constructor to new contract name
+    renameFunctionInContract contract' (contract, contract') |>
 
   -- (ii) Add LARVA_Status handlers
 
@@ -44,93 +46,34 @@ instrumentContractSpecification monitor =
       map parser'
         [ 
           -- Enumerated type to keep track whether contract is enabled or not.
-          "enum LARVA_STATUS { NOT_STARTED, READY, RUNNING, STOPPED }"
+          "enum LARVA_STATUS { RUNNING, STOPPED }"
           -- Functionality to enable and disable the original contract
-          , "function LARVA_EnableContract() private { LARVA_Status = (LARVA_Status == LARVA_STATUS.NOT_STARTED)?LARVA_STATUS.READY:LARVA_STATUS.RUNNING; }"
-          , "function LARVA_DisableContract() private { LARVA_Status = (LARVA_Status == LARVA_STATUS.READY)?LARVA_STATUS.NOT_STARTED:LARVA_STATUS.STOPPED; }"
+          , "function LARVA_EnableContract() private { LARVA_Status = LARVA_STATUS.RUNNING; }"
+          , "function LARVA_DisableContract() private { LARVA_Status = LARVA_STATUS.STOPPED; }"
           -- LARVA_status keeps track of the current status of the contract
-          ,"LARVA_STATUS private LARVA_Status = LARVA_STATUS.NOT_STARTED;"
+          ,"LARVA_STATUS private LARVA_Status = LARVA_STATUS.STOPPED;"
           -- Modifier to ensure that the contract has been enabled
           , "modifier LARVA_ContractIsEnabled { require(LARVA_Status == LARVA_STATUS.RUNNING); _; }"        ]) |>  
     
-  --(iii) Deal with monitor constructors and status of monitor
-
-    --rename old-style constructor to new contract name
-    renameFunctionInContract contract' (contract, contract') |>
-
-    --Add constructor if constructor not defined
-    (\x ->  if constructorIsDefinedInContract contract' x
-              then x
-              else if useNewStyleConstructor x
-                  then addContractParts contract' 
-                                    [ ContractPartConstructorDefinition
-                                        (ParameterList [])
-                                        [FunctionDefinitionTagPublic]
-                                        (Just $ Block [])
-                                        ] x
-                  else addContractParts contract' 
-                                  [ ContractPartFunctionDefinition
-                                      (Just contract') (ParameterList [])
-                                      [FunctionDefinitionTagPublic]
-                                      Nothing
-                                      (Just $ Block [])
-                                    ] x) |>
-
-      --If there the initialisation and declaration code has no enabling logic (i.e. no call to function LARVA_EnableContract) in the monitor 
-      --  then simply set the monitor to running
-      --  otherwise set the monitor initially to not started
-      --            and if the declaration code has no enabling logic
-      --                    then add a modifier that includes logic to execute the monitor initialisation code and then the original constructor
-      --                         and if the original smart contract has no constructor then create one
-      --                         and then add the just created modifier to the existing constructor
-      --                    else turn the old constructor (if any) into a normal function 
-      --                         and allow it to be executed only if the status of the monitor is READY
-      --                         and create a new constructor containing the initialisation code of the monitor
-    if not (monitorDeclarationsHasCustomEnablingLogic monitor) && not (monitorInitialisationHasCustomEnablingLogic monitor)
-              then --rename old constructor to new contractname if using old style constructor (will only have effect if this is present)
-                    addContractParts contract'
-                      (map parser' [
-                        -- Modifier to be added to the old constructor to ensure that it is ready to be called and to set the status to running
-                      "modifier LARVA_Constructor {"++ "LARVA_Status = LARVA_STATUS.RUNNING;"
-                      ++ display (initialisation monitor) ++ " _; }"
-                      ]) |> 
-                      addTopModifierToContractConstructor 
-                      contract' (Identifier "LARVA_Constructor", ExpressionList []) 
-              else (if monitorInitialisationHasCustomEnablingLogic monitor
-                          then addContractParts contract' 
-                                (map parser' [
-                                  -- Modifier to be added to the old constructor to ensure that it is ready to be called and to set the status to running after
-                                 "modifier LARVA_Constructor {" ++ "require(LARVA_Status == LARVA_STATUS.READY); LARVA_Status = LARVA_STATUS.RUNNING; "  ++ display (initialisation monitor)  ++  " _; }"
-                                ]) |>
-                                addTopModifierToContractConstructor 
-                                contract' (Identifier "LARVA_Constructor", ExpressionList []) 
-                          else addContractParts contract' 
-                                (map parser' [
-                                  -- Modifier to be added to the old constructor to ensure that it is ready to be called and to set the status
-                                  -- to running after terminating succesfully
-                                 "modifier LARVA_Constructor { require(LARVA_Status == LARVA_STATUS.READY); LARVA_Status = LARVA_STATUS.RUNNING; _; }"
-                                ]) |>
-                                renameFunctionInContract contract' (contract', Identifier (unIdentifier contract ++ "Constructor")) |>
-                    
-                                renameConstructorInContract contract' (Identifier (unIdentifier contract ++ "Constructor")) |>
-                                addTopModifierToFunctionInContract
-                                contract' (Identifier (unIdentifier contract ++ "Constructor")) (Identifier "LARVA_Constructor", ExpressionList [])
-                                 |>
-                                \x -> if useNewStyleConstructor x
-                                          then addContractParts contract' 
-                                                            [ ContractPartConstructorDefinition
-                                                                (ParameterList [])
-                                                                [FunctionDefinitionTagPublic]
-                                                                (Just $ initialisation monitor)
-                                                              ] x
-                                          else addContractParts contract' 
-                                                          [ ContractPartFunctionDefinition
-                                                              (Just contract') (ParameterList [])
-                                                              [FunctionDefinitionTagPublic]
-                                                              Nothing
-                                                              (Just $ initialisation monitor)
-                                                            ] x
-                    )
+  --(iii)-Add constructor if constructor not defined and inlining intended
+    (\x -> if not inliningFlag
+            then x
+            else if constructorIsDefinedInContract contract' x
+                  then x
+                  else if useNewStyleConstructor x
+                      then addContractParts contract' 
+                                        [ ContractPartConstructorDefinition
+                                            (ParameterList [])
+                                            [FunctionDefinitionTagPublic]
+                                            (Just $ Block [])
+                                            ] x
+                      else addContractParts contract' 
+                                      [ ContractPartFunctionDefinition
+                                          (Just contract') (ParameterList [])
+                                          [FunctionDefinitionTagPublic]
+                                          Nothing
+                                          (Just $ Block [])
+                                        ] x)
      |>
 
   -- (iv) Add reparation and satisfaction functions if they are not empty and there are respectively bad and acceptance states,
@@ -165,7 +108,21 @@ instrumentContractSpecification monitor =
       [ parser' ("int8 "++larva_state_variable n++" = 0;") | n <- [1..deaCount] ] |>
 
   -- (vii) Create modifiers to catch events and change state + attach modifiers to relevant functions
-    foldl (|>) id [ instrumentForDEA contract' (n,d) | (n,d) <- zip [1..] ds ]
+    foldl (|>) id [ instrumentForDEA contract' (n,d) | (n,d) <- zip [1..] ds ] 
+    |>
+
+  -- (viii) Inline or not the contract initialisation code
+      if not inliningFlag && not (initialisation monitor == (Block []))
+        then addContractParts contract'
+                (map parser' [
+                  -- Non-inlined monitor initilisation function
+                "function LARVA_Constructor() public {" ++ display (initialisation monitor)  ++  " }"])
+        else (addContractParts contract' 
+                (map parser' [
+                  -- Inlined monitor initilisation function as modifier
+                "modifier LARVA_Constructor {" ++ "_; "  ++ display (initialisation monitor)  ++  " }"])
+                |>
+              addTopModifierToContractConstructor contract' (Identifier "LARVA_Constructor", ExpressionList []))
 
   where
     contract = contractName monitor
@@ -293,9 +250,9 @@ instrumentContractSpecification monitor =
             ss = s0: (allStates dea \\ [s0])
 
 
-instrumentSpecification :: Specification -> Instrumentation
-instrumentSpecification specification =
-  foldl (\f c -> instrumentContractSpecification c . f) id (contractSpecifications specification)
+instrumentSpecification :: Specification -> Bool -> Instrumentation
+instrumentSpecification specification inliningFlag =
+  foldl (\f c -> instrumentContractSpecification c inliningFlag . f) id (contractSpecifications specification)
 
 -----------------------
 
@@ -349,3 +306,4 @@ exprContainsCallToFunction f (FunctionCallExpressionList e Nothing) = exprContai
 exprContainsCallToFunction f (FunctionCallExpressionList e (Just (ExpressionList exs))) = exprContainsCallToFunction f e || foldr ((||) . exprContainsCallToFunction f) False exs
 exprContainsCallToFunction f (Literal (PrimaryExpressionIdentifier ff)) = f == ff
 exprContainsCallToFunction _ _ = False
+
