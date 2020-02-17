@@ -161,19 +161,19 @@ The automata used are, however, symbolic automata --- in that they may use and m
   Within a monitor specification, one can include the following parts in order (although they are all optional):
   
   \begin{itemize}
-    \item Declarations: Within the \texttt{declarations} block one can include any declarations (functions, modifiers, variables, etc.)  written in Solidity, which are to be added to the original smart contract in order to perform the functionality required. For instance, any variables which are required to keep track of additional state which is manipulated by the condition and actions of the DEA transitions should be declared here.
-    \item Initialisation: Within the \texttt{initialisation} block one is to add Solidity code that will make up the constructor of the instrumented smart contract. If left out (and the declarations block does not contain any special initialising logic, as discussed further ahead), the constructor will simply contain a call to the original constructor of the contract.
-    \item Reparation: The \texttt{reparation} block should include code which is to be executed as soon as any property which the monitor is checking is violated (reaches a bad state). Since sometimes one may prefer to have code handling reparation in the actions on transitions leading into a bad state, this block may be left out.
-    \item Satisfaction: Similarly, the \texttt{satisfaction} is to contain code which is executed when all the DEAs in the specification reach an accepting state.
+    \item \textbf{Declarations}: Within the \texttt{declarations} block one can include any declarations (functions, modifiers, variables, etc.)  written in Solidity, which are to be added to the original smart contract in order to perform the functionality required. For instance, any variables which are required to keep track of additional state which is manipulated by the condition and actions of the DEA transitions should be declared here.
+    \item \textbf{Initialisation}: Within the \texttt{initialisation} block one is to add Solidity code that will initialise the monitor part of the instrumented smart contract. Note that to be able to use the instrumented smart contract one has to enable the smart contract (by calling \texttt{LARVA\_EnableContract()}) here or with a separate function in the \texttt{declarations} block (this is discussed further on). By default the code in this block will be implemented in a function \texttt{LARVA\_Constructor}, however by adding the \texttt{--init-inlined} flag when calling \contractlarva this code is instead inlined in the original constructor\footnote{Inlining in the original constructor is more efficient, since less code needs to be deployed to the blockchain (recall that in Ethereum constructor code is not deployed but simply called once before deployment).}.
+    \item \textbf{Reparation}: The \texttt{reparation} block should include code which is to be executed as soon as any property which the monitor is checking is violated (reaches a bad state). Since sometimes one may prefer to have code handling reparation in the actions on transitions leading into a bad state, this block may be left out.
+    \item \textbf{Satisfaction}: Similarly, the \texttt{satisfaction} is to contain code which is executed when all the DEAs in the specification reach an accepting state.
   \end{itemize}
 
   After these declarations, the monitor block can then have any number of DEAs which will be monitored for that contract. 
  
- \contractlarva automatically provides functionality to be able to disable and enable the original contract functionality. By default, the functionality of the original smart contract starts off disabled i.e. all calls to functions in the original smart contract are reverted (via a \texttt{require}). However, the functions \texttt{LARVA\_EnableContract()} and \texttt{LARVA\_DisableContract()} can be used to enable and disable it respectively. It is worth noting that even if enabled, the functionality of the original contract is blocked until the original constructor is called.
+ \contractlarva automatically provides functionality to be able to disable and enable the original contract functionality. By default, the functionality of the original smart contract starts off disabled i.e. all calls to functions in the original smart contract are reverted (via a \texttt{require}). However, the functions \texttt{LARVA\_EnableContract()} and \texttt{LARVA\_DisableContract()} can be used to enable and disable it respectively. It is important to ensure \texttt{LARVA\_EnableContract()} is either called in the \texttt{initialisation} block or by a function in the \texttt{declarations} block, otherwise the instrumented smart contract will not accept any transaction.
 
-  It is also important to note that \texttt{LARVA\_DisableContract()} does not stop a function call already in progress. For example, if you just disable the contract upon identifying a violation triggered by an event labelled by \texttt{before(function)}, the call to the function will continue normally. If this is not the desired behaviour, one must ensure to \texttt{revert} execution through the action on the transition or in the \texttt{reparation} function. Also note that if an event causes multiple DEAs to move into a bad state, each one will trigger a call to the reparation call even if \texttt{LARVA\_DisableContract()} is called.
+  An important aspect of the \contractlarva instrumentation is how it deals with smart contract initialisation. Consider that using one may want to introduce another layer of logic before the original contract is enabled, e.g. the payment of some ether for insurance purposes as further discussed in \ref{s:example}. This means that one may not wish for the contract to be immediately enabled upon deployment, but one may wish for several finite discrete steps to be taken before enabling. This can be done by not enabling the smart contract in the \texttt{initialisation} block, but instead providing appropriate functions in the \texttt{declarations} block for this.
   
-  An important aspect of the \contractlarva instrumentation is how it deals with the contract initialisation. Consider that using the \texttt{LARVA\_EnableContract()} and \texttt{LARVA\_DisableContract()} one may want to introduce another layer of logic before the original contract is enabled, e.g. the payment of some ether for insurance purposes as further discussed in \ref{s:example}. This means that one may not wish for the contract to be initialised upon deployment. \contractlarva deals with this in the following manner in the given cases: (i) if both the initialisation and declarations block do not call the \texttt{LARVA\_EnableContract()} then the contract starts as enabled, with the original constructor if any; (ii) if only the initialisation block contains enabling logic then this code is prepended to the original constructor, if any; while (iii) if the declarations block also contains such logic the original constructor, if any, is transformed into a normal function (with the name <contract-name>Constructor) that must be called to enable the original contract. The third case is more expensive than the others, since it requires the original constructor code to be saved to the blockchain, while in the other cases the required initialisation code is simply part of the constructor (which executed during deployment but not deployed).
+  It is also important to note that \texttt{LARVA\_DisableContract()} does not stop a function call already in progress. For example, if you just disable the contract upon identifying a violation triggered by an event labelled by \texttt{before(function)}, the call to the function will continue normally. If this is not the desired behaviour, one must ensure to \texttt{revert} execution through the action on the transition or in the \texttt{reparation} function. Also note that if an event causes multiple DEAs to move into a bad state, each one will trigger a call to the reparation call even if \texttt{LARVA\_DisableContract()} is called.
 
   \subsection{Use Case: Stake-based Verification}
   \label{s:example}
@@ -256,8 +256,9 @@ The automata used are, however, symbolic automata --- in that they may use and m
   \section{Tool Usage}
   The tool can be compiled using any recent version (version 8.2.1 at the time of writing) of the Glorious Glasgow Haskell Compilation System\footnote{GHC is available from \url{https://www.haskell.org/ghc}. To compile \contractlarva, just execute at the command line: \texttt{ghc -o contractlarva Main}.} (GHC). The tool can then be invoked at the command line as:
   
-  \smallskip\centerline{\texttt{contractlarva \keyword{DEA file} \keyword{input Solidity file} \keyword{output Solidity file}}}
+  \smallskip\centerline{\texttt{contractlarva \keyword{DEA file} \keyword{input Solidity file} \keyword{output Solidity file} \keyword{--init-inlined}?}}
   
+  \smallskip \texttt{--init-inlined} is a flag that can be used to inline the \texttt{initialisation} block right after the original smart contract's constructor original code.
   \smallskip The output file created will have the same functionality as the input one, but augmented as specified in the DEA file.
   
   \section{Missing Features}
@@ -288,6 +289,10 @@ The automata used are, however, symbolic automata --- in that they may use and m
 \item[v0.2.2$\alpha$] released 1 September 2019
 \begin{itemize}
   \item Added full support for $<$=v0.5.11 Solidity.
+\end{itemize}
+\item[v0.2.3$\alpha$] released 17 February 2020
+\begin{itemize}
+  \item Simplified monitor initialisation logic.
 \end{itemize}
 \end{description}
 
