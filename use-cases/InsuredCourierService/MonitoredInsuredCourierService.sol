@@ -1,4 +1,10 @@
 contract LARVA_InsuredCourierService {
+  modifier LARVA_Constructor {
+    _;
+    {
+      insurer_address = msg.sender;
+    }
+  }
   modifier LARVA_DEA_1_handle_after_order__no_parameters {
     if ((LARVA_STATE_1 == 0)) {
       LARVA_STATE_1 = 1;
@@ -29,6 +35,7 @@ contract LARVA_InsuredCourierService {
   uint orderedTime;
   uint minimumInsuredDeliveryTime = 24 * 30 hours;
   address payable private insurer_address;
+  address payable private customer;
   function getStake () private returns (uint) {
     return value;
   }
@@ -47,24 +54,16 @@ contract LARVA_InsuredCourierService {
     stake_status = STAKE_STATUS.PAID;
     LARVA_EnableContract();
   }
-  constructor () public {
-    insurer_address = msg.sender;
+  constructor () LARVA_Constructor public {
   }
-  modifier LARVA_Constructor {
-    require(LARVA_Status == LARVA_STATUS.READY);
+  enum LARVA_STATUS {RUNNING, STOPPED}
+  function LARVA_EnableContract () private {
     LARVA_Status = LARVA_STATUS.RUNNING;
-    _;
   }
-  function InsuredCourierServiceConstructor () LARVA_Constructor public {
+  function LARVA_DisableContract () private {
+    LARVA_Status = LARVA_STATUS.STOPPED;
   }
-  enum LARVA_STATUS {NOT_STARTED, READY, RUNNING, STOPPED}
-  function LARVA_EnableContract () LARVA_ContractIsEnabled private {
-    LARVA_Status = (LARVA_Status == LARVA_STATUS.NOT_STARTED)?LARVA_STATUS.READY:LARVA_STATUS.RUNNING;
-  }
-  function LARVA_DisableContract () LARVA_ContractIsEnabled private {
-    LARVA_Status = (LARVA_Status == LARVA_STATUS.READY)?LARVA_STATUS.NOT_STARTED:LARVA_STATUS.STOPPED;
-  }
-  LARVA_STATUS private LARVA_Status = LARVA_STATUS.NOT_STARTED;
+  LARVA_STATUS private LARVA_Status = LARVA_STATUS.STOPPED;
   modifier LARVA_ContractIsEnabled {
     require(LARVA_Status == LARVA_STATUS.RUNNING);
     _;
@@ -73,7 +72,7 @@ contract LARVA_InsuredCourierService {
   bool delivered;
   uint value = 1 ether;
   address buyer;
-  function order (uint _eta, address _buyer, string memory _address) LARVA_DEA_1_handle_after_order__no_parameters LARVA_ContractIsEnabled public {
+  function order (uint _eta, address _buyer, string memory _address) LARVA_DEA_1_handle_after_order__no_parameters LARVA_ContractIsEnabled payable public {
     require(!ordered && msg.value == value);
     ordered = true;
     buyer = _buyer;

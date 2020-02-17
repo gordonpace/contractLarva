@@ -8,6 +8,10 @@ monitor ERC20Interface{
 		uint preAllowance;
 
 	}
+	
+    initialisation{
+        LARVA_EnableContract();
+    }
 
 	reparation {
 		revert();

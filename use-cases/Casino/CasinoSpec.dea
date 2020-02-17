@@ -4,6 +4,10 @@ monitor Casino{
         uint total;
     }
 
+    initialisation{
+        LARVA_EnableContract();
+    }
+
     DEA NoReduction {
         states {
             TableOpen: initial;

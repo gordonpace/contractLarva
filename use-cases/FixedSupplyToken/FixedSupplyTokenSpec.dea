@@ -4,6 +4,10 @@ monitor FixedSupplyToken{
         uint currentTokens;
     }
     
+    initialisation{
+        LARVA_EnableContract();
+    }
+    
     reparation{
         revert();
     }

@@ -5,6 +5,7 @@
          uint minimumInsuredDeliveryTime = 24*30 hours;
  
          address payable private insurer_address;
+         address payable private customer;
          function getStake() private returns(uint) { return value; }
          function getInsurer() private returns(address payable) { return insurer_address; }
          function getInsured() private returns(address payable) { return customer; }

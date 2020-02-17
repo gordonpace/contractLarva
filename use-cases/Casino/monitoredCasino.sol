@@ -1,5 +1,11 @@
 pragma solidity ^0.5.11;
 contract LARVA_Casino {
+  modifier LARVA_Constructor {
+    _;
+    {
+      LARVA_EnableContract();
+    }
+  }
   modifier LARVA_DEA_2_handle_after_timeoutBet__no_parameters {
     if ((LARVA_STATE_2 == 2)) {
       LARVA_STATE_2 = 1;
@@ -79,20 +85,14 @@ contract LARVA_Casino {
   }
   uint private LARVA_previous_pot;
   uint total;
-  modifier LARVA_Constructor {
-    {
-    }
+  enum LARVA_STATUS {RUNNING, STOPPED}
+  function LARVA_EnableContract () private {
     LARVA_Status = LARVA_STATUS.RUNNING;
-    _;
   }
-  enum LARVA_STATUS {NOT_STARTED, READY, RUNNING, STOPPED}
-  function LARVA_EnableContract () LARVA_ContractIsEnabled private {
-    LARVA_Status = (LARVA_Status == LARVA_STATUS.NOT_STARTED)?LARVA_STATUS.READY:LARVA_STATUS.RUNNING;
+  function LARVA_DisableContract () private {
+    LARVA_Status = LARVA_STATUS.STOPPED;
   }
-  function LARVA_DisableContract () LARVA_ContractIsEnabled private {
-    LARVA_Status = (LARVA_Status == LARVA_STATUS.READY)?LARVA_STATUS.NOT_STARTED:LARVA_STATUS.STOPPED;
-  }
-  LARVA_STATUS private LARVA_Status = LARVA_STATUS.NOT_STARTED;
+  LARVA_STATUS private LARVA_Status = LARVA_STATUS.STOPPED;
   modifier LARVA_ContractIsEnabled {
     require(LARVA_Status == LARVA_STATUS.RUNNING);
     _;

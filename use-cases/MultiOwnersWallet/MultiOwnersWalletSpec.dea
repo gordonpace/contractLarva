@@ -5,6 +5,10 @@ monitor MultiOwners {
         mapping(address => mapping(address => bool)) votes;
     }
 
+    initialisation{
+        LARVA_EnableContract();
+    }
+    
     reparation {
         revert();
     }

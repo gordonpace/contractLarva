@@ -4,7 +4,7 @@
       uint value = 1 ether;
       address buyer;
       
-      function order(uint _eta, address _buyer, string memory _address) public{
+      function order(uint _eta, address _buyer, string memory _address) payable public{
           require(!ordered && msg.value == value);
           ordered = true;
           buyer = _buyer;

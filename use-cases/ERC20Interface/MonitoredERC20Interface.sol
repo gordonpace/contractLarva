@@ -11,6 +11,12 @@ interface ERC20TokenImplementation {
 
 }
 contract LARVA_ERC20Interface {
+  modifier LARVA_Constructor {
+    _;
+    {
+      LARVA_EnableContract();
+    }
+  }
   modifier LARVA_DEA_3_handle_after_approve__parameters_spender_tokens (address spender, uint tokens) {
     if ((LARVA_STATE_3 == 1) && (allowance(msg.sender, spender) == tokens)) {
       LARVA_STATE_3 = 0;
@@ -115,20 +121,14 @@ contract LARVA_ERC20Interface {
   uint transferFromPreFrom;
   uint transferFromPreTo;
   uint preAllowance;
-  modifier LARVA_Constructor {
-    {
-    }
+  enum LARVA_STATUS {RUNNING, STOPPED}
+  function LARVA_EnableContract () private {
     LARVA_Status = LARVA_STATUS.RUNNING;
-    _;
   }
-  enum LARVA_STATUS {NOT_STARTED, READY, RUNNING, STOPPED}
-  function LARVA_EnableContract () LARVA_ContractIsEnabled private {
-    LARVA_Status = (LARVA_Status == LARVA_STATUS.NOT_STARTED)?LARVA_STATUS.READY:LARVA_STATUS.RUNNING;
+  function LARVA_DisableContract () private {
+    LARVA_Status = LARVA_STATUS.STOPPED;
   }
-  function LARVA_DisableContract () LARVA_ContractIsEnabled private {
-    LARVA_Status = (LARVA_Status == LARVA_STATUS.READY)?LARVA_STATUS.NOT_STARTED:LARVA_STATUS.STOPPED;
-  }
-  LARVA_STATUS private LARVA_Status = LARVA_STATUS.NOT_STARTED;
+  LARVA_STATUS private LARVA_Status = LARVA_STATUS.STOPPED;
   modifier LARVA_ContractIsEnabled {
     require(LARVA_Status == LARVA_STATUS.RUNNING);
     _;

@@ -33,6 +33,10 @@ monitor SmartAuctionHouse{
         }
     }
 
+    initialisation{
+        LARVA_EnableContract();
+    }
+    
     reparation{
         revert();
     }

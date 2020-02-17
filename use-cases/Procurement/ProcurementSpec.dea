@@ -7,6 +7,7 @@ monitor Procurement{
 
     initialisation {
         mediator = address(uint160(msg.sender));
+        LARVA_EnableContract();
     }
 
     reparation {

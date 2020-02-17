@@ -1,5 +1,12 @@
 pragma solidity ^0.4.15;
 contract LARVA_Procurement {
+  modifier LARVA_Constructor {
+    _;
+    {
+      mediator = address(uint160(msg.sender));
+      LARVA_EnableContract();
+    }
+  }
   modifier LARVA_DEA_2_handle_after_assignment_minimumItemsToBeOrdered {
     _;
     if ((LARVA_STATE_2 == 0) && (LARVA_previous_minimumItemsToBeOrdered != minimumItemsToBeOrdered)) {
@@ -74,21 +81,14 @@ contract LARVA_Procurement {
   address mediator;
   uint orderCount;
   bool enoughItemsOrderedBadStateReached;
-  modifier LARVA_Constructor {
-    {
-      mediator = address(uint160(msg.sender));
-    }
+  enum LARVA_STATUS {RUNNING, STOPPED}
+  function LARVA_EnableContract () private {
     LARVA_Status = LARVA_STATUS.RUNNING;
-    _;
   }
-  enum LARVA_STATUS {NOT_STARTED, READY, RUNNING, STOPPED}
-  function LARVA_EnableContract () LARVA_ContractIsEnabled private {
-    LARVA_Status = (LARVA_Status == LARVA_STATUS.NOT_STARTED)?LARVA_STATUS.READY:LARVA_STATUS.RUNNING;
+  function LARVA_DisableContract () private {
+    LARVA_Status = LARVA_STATUS.STOPPED;
   }
-  function LARVA_DisableContract () LARVA_ContractIsEnabled private {
-    LARVA_Status = (LARVA_Status == LARVA_STATUS.READY)?LARVA_STATUS.NOT_STARTED:LARVA_STATUS.STOPPED;
-  }
-  LARVA_STATUS private LARVA_Status = LARVA_STATUS.NOT_STARTED;
+  LARVA_STATUS private LARVA_Status = LARVA_STATUS.STOPPED;
   modifier LARVA_ContractIsEnabled {
     require(LARVA_Status == LARVA_STATUS.RUNNING);
     _;
@@ -124,7 +124,7 @@ contract LARVA_Procurement {
     require(msg.sender == buyer);
     _;
   }
-  function LARVA_Procurement (address _seller, address _buyer, uint _minimumItemsToBeOrdered, uint _maximumItemsToBeOrdered, uint _costPerUnit, uint _performanceGuarantee, uint _contractDuration) LARVA_Constructor LARVA_ContractIsEnabled public payable {
+  function LARVA_Procurement (address _seller, address _buyer, uint _minimumItemsToBeOrdered, uint _maximumItemsToBeOrdered, uint _costPerUnit, uint _performanceGuarantee, uint _contractDuration) LARVA_Constructor public payable {
     require(msg.value >= _costPerUnit * _minimumItemsToBeOrdered);
     seller = _seller;
     buyer = _buyer;

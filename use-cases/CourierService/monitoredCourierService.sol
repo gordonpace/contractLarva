@@ -1,4 +1,10 @@
 contract LARVA_CourierService {
+  modifier LARVA_Constructor {
+    _;
+    {
+      LARVA_EnableContract();
+    }
+  }
   modifier LARVA_DEA_1_handle_after_refund__parameters_ () {
     if ((LARVA_STATE_1 == 0)) {
       LARVA_STATE_1 = 6;
@@ -98,22 +104,16 @@ contract LARVA_CourierService {
     _;
   }
   int8 LARVA_STATE_1 = 0;
-  modifier LARVA_Constructor {
-    {
-    }
-    LARVA_Status = LARVA_STATUS.RUNNING;
-    _;
-  }
   constructor () LARVA_Constructor public {
   }
-  enum LARVA_STATUS {NOT_STARTED, READY, RUNNING, STOPPED}
-  function LARVA_EnableContract () LARVA_ContractIsEnabled private {
-    LARVA_Status = (LARVA_Status == LARVA_STATUS.NOT_STARTED)?LARVA_STATUS.READY:LARVA_STATUS.RUNNING;
+  enum LARVA_STATUS {RUNNING, STOPPED}
+  function LARVA_EnableContract () private {
+    LARVA_Status = LARVA_STATUS.RUNNING;
   }
-  function LARVA_DisableContract () LARVA_ContractIsEnabled private {
-    LARVA_Status = (LARVA_Status == LARVA_STATUS.READY)?LARVA_STATUS.NOT_STARTED:LARVA_STATUS.STOPPED;
+  function LARVA_DisableContract () private {
+    LARVA_Status = LARVA_STATUS.STOPPED;
   }
-  LARVA_STATUS private LARVA_Status = LARVA_STATUS.NOT_STARTED;
+  LARVA_STATUS private LARVA_Status = LARVA_STATUS.STOPPED;
   modifier LARVA_ContractIsEnabled {
     require(LARVA_Status == LARVA_STATUS.RUNNING);
     _;

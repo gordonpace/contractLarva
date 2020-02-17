@@ -1,5 +1,9 @@
 monitor CourierService{
 	
+    initialisation{
+        LARVA_EnableContract();
+    }
+	
 	DEA WellBehaviour {
 		states {
 			Start: initial;
