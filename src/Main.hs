@@ -51,6 +51,8 @@ main =
     specificationText <- readFile specificationFile
       `failWith` ("Cannot read specification file <"++specificationFile++">")
     specification <- parseIO specificationFile specificationText
+    putStrLn (concat $ warningsSpecification specification)
+
     let problems = problemsSpecification specification
     ifNot (null problems) (unlines problems)
 

@@ -12,7 +12,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-module DEA.Instrumentation (instrumentSpecification) where
+module DEA.Instrumentation (instrumentSpecification, warningsSpecification) where
 
 
 import Control.Monad hiding (guard)
@@ -307,3 +307,20 @@ exprContainsCallToFunction f (FunctionCallExpressionList e (Just (ExpressionList
 exprContainsCallToFunction f (Literal (PrimaryExpressionIdentifier ff)) = f == ff
 exprContainsCallToFunction _ _ = False
 
+
+warningsSpecification :: Specification -> [String]
+warningsSpecification spec =
+  concat (map warningsContractSpecification cspecs)
+  where
+    cspecs = contractSpecifications spec
+
+warningsContractSpecification :: ContractSpecification -> [String]
+warningsContractSpecification cspec
+  | null warnings = []
+  | otherwise = ("\n\nWarnings in definition of specification of contract <"++display (contractName cspec)++">:"):warnings
+  where
+    warnings =
+      
+      [ "\n   You seem to be lacking logic to enable the instrumented smart contract. Ensure you have a call to LARVA_EnableContract in the initialisation block or in a function the declarations block.\n\n"
+      | not (monitorDeclarationsHasCustomEnablingLogic cspec ||monitorInitialisationHasCustomEnablingLogic cspec)
+      ]
