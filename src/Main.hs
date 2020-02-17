@@ -19,6 +19,7 @@ import System.Exit
 import Control.Exception.Base
 import System.IO
 import System.IO.Error
+import Data.List
 
 import Text.Parsec hiding (try)
 import Text.Parsec.String
@@ -42,10 +43,11 @@ main =
   do
     contractLarva <- getProgName
     arguments <- getArgs
-    ifNot (length arguments == 3)
-      ("Usage: "++contractLarva++" <specification> <input solidity file> <output solidity file>")
-    let [specificationFile, inFile, outFile] = arguments
-
+    ifNot (length arguments >= 3 || (length arguments == 4 && (elem "--init-inlined" arguments)))
+      ("Usage: "++contractLarva++" <specification> <input solidity file> <output solidity file> <--init-inlined>?")
+    let ([specificationFile, inFile, outFile], flag) = if length arguments == 3
+                                                        then (arguments, False)
+                                                        else (delete "--init-inlined" arguments, True)
     specificationText <- readFile specificationFile
       `failWith` ("Cannot read specification file <"++specificationFile++">")
     specification <- parseIO specificationFile specificationText
@@ -55,7 +57,7 @@ main =
     inputText <- readFile inFile
       `failWith` ("Cannot read Solidity file <"++inFile++">")
     inCode <- parseIO inFile inputText
-    let outCode = instrumentSpecification specification inCode
+    let outCode = instrumentSpecification specification flag inCode 
     writeFile outFile (display outCode)
       `failWith` ("Cannot write to Solidity file <"++outFile++">")
     putStrLn ("Created safe contract file <"++outFile++">")
