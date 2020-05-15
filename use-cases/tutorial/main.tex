@@ -64,9 +64,9 @@ This document illustrates \contractlarva through several use-cases. %\todo{maybe
 
   The primary motivation for \contractlarva is \textbf{runtime verification}. Verification is an approach to ensure well-behaved programs, by checking that the program is compliant with a specification. \contractlarva is a tool for runtime verification of smart contracts, allowing behaviour recorded on the blockchain, relative to one smart contract, to be given a verdict (satisfying or violating) at runtime. 
   
-  Ideally smart contracts are verified correct before they are deployed to the blockchain. However, this may not always be possible, either because the problem is too hard or because it involves interaction with other systems. Consider that a smart contract may be used to record real-life events, e.g. a courier service may allow a delivery person to signal delivery though an appropriate smart contract function. A specification can specify bad traces of these real-life events, e.g. we may specify that an item should not be delivered if it was not ordered. Such a smart contract can easily be designed to be compliant with this specification, however then it is no longer in synch with the real-world if a violation occurs, e.g. if the smart contract simply does not allow a delivery to be recorded (i.e. \texttt{revert} is called) without a prior order then it may not maintain correct stock records. This may affect compliance with other aspects of the desired behaviour of the smart contract. 
+  Ideally smart contracts are verified correct before they are deployed to the blockchain. However, this may not always be possible, either because the problem is too hard or because it involves interaction with other systems. Consider that a smart contract may be used to record real-life events, e.g. a courier service may allow a delivery person to signal delivery though an appropriate smart contract function. A specification can specify bad traces of these real-life events, e.g. we may specify that an item should not be delivered if it was not ordered. Such a smart contract can easily be designed to be compliant with this specification, however then it is no longer in sync with the real-world if a violation occurs, e.g. if the smart contract simply does not allow a delivery to be recorded (i.e. \texttt{revert} is called) without a prior order then it may not maintain correct stock records. This may affect compliance with other aspects of the desired behaviour of the smart contract. 
   
-  Then, a specification may not necessarily simply be about a smart contract on its own, but also about its interaction with an outside system (e.g. the real-world). For these kinds of specifications methods based on \textbf{static code analysis should fail}: static compliance with such a specification would in fact be evidence in favor of buggy behaviour. On the other hand methods based on runtime verification allow us to monitor for these violations, without changing the behaviour of the smart contract. This is essential for smart contracts that need to synchronize with other uncontrollable systems. \contractlarva is an ideal tool for this, allowing us to detect these violations at runtime.
+  Then, a specification may not necessarily simply be about a smart contract on its own, but also about its interaction with an outside system (e.g. the real-world). For these kinds of specifications methods based on \textbf{static code analysis should fail} (i.e. they should identify that violations can occur): static compliance with such a specification would in fact be evidence in favor of buggy behaviour. On the other hand methods based on runtime verification allow us to monitor for and dealing these violations, without changing the behaviour of the smart contract. This is essential for smart contracts that need to synchronize with other uncontrollable systems. \contractlarva is an ideal tool for this, allowing us to detect these violations at runtime.
   
 %   \subsubsection{Runtime Enforcement -- {\large Enforcing Compliance with Specifications}}
 %   \label{s:enforce}
@@ -110,7 +110,7 @@ This document illustrates \contractlarva through several use-cases. %\todo{maybe
    
     Given the immutable nature of blockchain transactions, a smart contract can be used to allow for dependable record-keeping. This can be to keep track of orders delivered by a courier service. Listing.~\ref{code:courierservice} illustrates such a smart contract, where an order and delivery can be recorded to the blockchain using appropriate functions. 
    
-    \small\begin{lstlisting}[language=Solidity,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,label={code:courierservice}]
+    \small\begin{lstlisting}[language=Solidity,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,label={code:courierservice}, caption={Courier Service smart contract.}]
 contract CourierService{
   bool ordered;
   bool delivered;
@@ -132,7 +132,7 @@ contract CourierService{
   \contractlarva can be used to specify more sophisticated business logic, e.g. in Listing.~\ref{dea:courierservice} we specify that an order cannot be delivered before being ordered (see lines 17 and 23), and that an order should be delivered within the expected estimated time of arrival, and at the appropriate address (see lines 20 and 25).
 
   
-  \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:courierservice}]
+  \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:courierservice},caption={Monitor that only ordered items are delivered.}]
 monitor CourierService{
 
   declarations {
@@ -224,7 +224,7 @@ monitor CourierService{
     \label{f:legal-contract-procurement}
     \end{figure}
     
-    \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,label={lt:courierservice}]
+    \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,label={lt:courierservice},caption={Excerpt from procument smart contract.}]
 pragma solidity ^0.4.15;
 
 
@@ -281,9 +281,9 @@ contract Procurement {
     
    Checking the smart contract is always compliant with the required behaviour is a hard problem. Instead, \contractlarva can be used to enforce the behaviour on the execution trace at runtime, simply through building a formal representation of the legal contract. 
    
-   For example, Listing.~\ref{dea:courierservice1} specifies formally the second clause of Figure.~\ref{f:legal-contract-procurement}. Consider that with Line 20 we are keeping count of the number of orders, while in Line 21 (Line 22) we are ensuring that the minimum (maximum) items to be ordered is constant and is not modified while the contract is running. With Lines 23 and 24 we ensure that just before the contract is terminated enough items have been ordered, otherwise termination is reverted (note Lines 6-8). 
+   For example, Listing.~\ref{dea:procurement} specifies formally the second clause of Figure.~\ref{f:legal-contract-procurement}. Consider that with Line 20 we are keeping count of the number of orders, while in Line 21 (Line 22) we are ensuring that the minimum (maximum) items to be ordered is constant and is not modified while the contract is running. With Lines 23 and 24 we ensure that just before the contract is terminated enough items have been ordered, otherwise termination is reverted (note Lines 6-8). 
      
-     \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:courierservice1}]
+     \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:procurement},caption={Monitor specification that checks whether the number of items ordered is within the minimum and maximum required.}]
 monitor Procurement{
   declarations {
     uint orderCount;
@@ -317,7 +317,7 @@ monitor Procurement{
     
     Moreover, DEAs can be used to deal with possible edge cases. For example Listing.~\ref{dea:courierservice2} specifies that any ether left in the contract after termination should be transferred to the contract's deployer. Note how Lines 8-10 ensure that when a contract is initialised we keep track of the contract's deployer in the \texttt{mediator} variable. Line 25 specifies that if the contract ends with some balance then we can transition to a bad state, which activates the reparation specified by Lines 12-14, i.e. that the mediator is transferred the remaining balance.
     
-    \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:courierservice2}]
+    \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:courierservice2},caption={Monitor that checks that when the procurement contract terminates no ether is left in the smart contract.}]
     monitor Procurement{
       declarations {
         address mediator;
@@ -355,7 +355,7 @@ monitor Procurement{
    
    A common use for blockchains is to manage cryptocurrencies. In fact smart contracts are used to implement wallets (usually following some conventional interface such as ERC20 in Listing.~\ref{code:erc20interface}), allowing users to own a certain amount of tokens and to use them. The design and implementation of these wallets is critical, in fact in the past bugs in wallet implementations have led to a significant amount of tokens with real-world value being lost (e.g. the Parity bug). \contractlarva monitors implementing aspects of the expected behaviour of a wallet can serve as a further defense against such bugs and other attacks.
    
-       \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={code:erc20interface}]
+       \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={code:erc20interface},caption={ERC20 interface.}]
         // ----------------------------------------------------------------------------
         // ERC Token Standard #20 Interface
         // https://github.com/ethereum/EIPs/blob/master/EIPS/eip-20-token-standard.md
@@ -376,7 +376,7 @@ monitor Procurement{
    Here we consider a fixed supply token wallet, where the wallet is initialised with a certain amount of tokens that should not change at runtime. Looking at the implementation of the \texttt{transfer} function in Listing.~\ref{code:transferfunc}, we can see that the balance of the function caller is reduced on Line 2, and the balance of the intended recipient is increased on Line 3. Note that here addition and subtraction are encoded in appropriate functions, so that \contractlarva is able to instrument them.
          
          
-             \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={code:transferfunc}]
+             \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={code:transferfunc},caption={\texttt{transfer} function.}]
     function transfer(address to, uint tokens) onlyOwner public returns (bool success) {
         balances[msg.sender] = sub(balances[msg.sender],tokens);
         balances[to] = add(balances[to],tokens);
@@ -387,7 +387,7 @@ monitor Procurement{
 
     One way to ensure there is a fixed supply of tokens is to simply check that any addition to any user's balance is paired with a subtraction from another user's balance. Listing.~\ref{dea:fixedsupplytoken} encodes this logic. 
     
-        \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:fixedsupplytoken}]
+        \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:fixedsupplytoken},caption={Monitor that checks that an addition in tokens is accompanied with an equal subtraction.}]
 monitor FixedSupplyToken{
   
     declarations{
@@ -400,7 +400,7 @@ monitor FixedSupplyToken{
 
     //This property checks that any addition to the balance must be coupled immediately with a subtraction,
     //ensuring tokens are only moved around, while ensuring that any change is immediately (modulo one step) reflected in the total sum.
-    DEA AdditionOfBalanceMustBeAccompaniedBySubstituion{
+    DEA AdditionOfBalanceMustBeAccompaniedBySubtraction{
         states{
             Before: initial;
             StartTransfer;
@@ -442,7 +442,7 @@ monitor FixedSupplyToken{
  
  Smart contracts have been used to allow for people to bet a certain amount of crypto-currency tokens, which allows for users who guessed the correct outcome to be automatically rewarded. This use case considers such a smart contract, which can be found in Listing.~\ref{code:casino}.
   
-  \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={code:casino}]
+  \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={code:casino},caption={Casino smart contract.}]
 pragma solidity ^0.5.11;
 
 contract Casino{
@@ -527,7 +527,7 @@ contract Casino{
       
       In Listing.~\ref{dea:casino} we consider two properties the casino should have: (i) when there is an ongoing bet (i.e. the table is open) the running pot should not be reduced but only increase; and (ii) the table cannot be closed during a bet.
       
-        \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:casino}]
+        \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:casino},caption={Monitors that check: (i) that a game's \texttt{pot} is increasing; and (ii) a game is open until it is resolved.}]
 monitor Casino{
 
     declarations{
@@ -578,7 +578,7 @@ monitor Casino{
  
  Consider an ERC20 wallet, which has the interface specified in Listing.~\ref{code:erc20interface}. A proxy smart contract would be similar to the smart contract extract in Listing.~\ref{code:erc20behavinteface}.
       
-  \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={code:erc20behavinteface}]
+  \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={code:erc20behavinteface},caption={Extract from ERC20 proxy interface.}]
   contract ERC20Interface{
     
     ERC20TokenImplementation impl;
@@ -604,7 +604,7 @@ monitor Casino{
   The DEA in Listing.~\ref{dea:erc20}, when weaved into Listing.~\ref{code:erc20behavinteface} enforces the well-behaviour of the \texttt{transfer} function. In effect this sets pre- and post-conditions for calls of the function, and disallow re-entrancy into the proxy smart contract from the concrete implementation. We can create similar specifications for the other non-pure functions.
   
       
-  \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:erc20}]
+  \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:erc20},caption={Monitor that ensures well-behaviour of \texttt{transfer} function with appropriate pre- and post-conditions.}]
   monitor ERC20Interface{
   	declarations {
   		uint transferPreFrom;
@@ -653,7 +653,7 @@ monitor Casino{
  A particular use-case is the addition of insurance logic. Consider the courier service contract in Listing.~\ref{code:courierservice1}, extended with a function \texttt{complain}, wherein the buyer can complain if the order has not yet been delivered.
  
  
-     \small\begin{lstlisting}[language=Solidity,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,label={code:courierservice1}]
+     \small\begin{lstlisting}[language=Solidity,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,label={code:courierservice1},caption={Courier service smart contract extended with a \texttt{complain} function.}]
  contract CourierService{
    bool ordered;
    bool delivered;
@@ -681,7 +681,7 @@ monitor Casino{
  
  The DEA in Listing.~\ref{dea:insurancecourier} inserts some logic before the smart contract is initialised, where it requires the \texttt{payStake} function to be called before the smart contract is enabled. Consider how if the smart contract is not delivered on time this logic pays the customer an amount of ether (specified on Line 8) to make up for the inconvenience.
  
-  \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:insurancecourier}]
+  \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:insurancecourier},caption={Monitor that implements state-based insurance logic.}]
  monitor CourierService {
  
    declarations {
@@ -743,7 +743,7 @@ A wallet may be owned by multiple entities rather than by a single owner, requir
 
 Figure.\ref{lt:multi-owner} is an extract of a multi-owner wallet, including a modifier that ensures all owners have signed off on a certain action (Line 6), a function to propose a transaction (Line 18), a transfer function that performs a transaction if all owners sign off on it (Line 24), and a function which owners can use to vote to remove owners (Line 28).
 
-  \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={lt:multi-owner}]
+  \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={lt:multi-owner},caption={A wallet smart contract allowing for multiple owners.}]
   pragma solidity ^0.5.11;
   
   contract MultiOwners {
@@ -803,7 +803,7 @@ This smart contract represents the base functionality of the wallet, with little
 
 In Listing.~\ref{dea:multi-owner} we specify this well-behaviour, in terms of two DEAs. First we ensure that transactions started by ex-owners are not carried out, and secondly we ensure that an owner can only vote once in removing an owner, since the current implementation allows that.
 
-  \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:multi-owner}]
+  \small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:multi-owner},caption={A monitor that checks that transactions started by ex-owners are not fulfilled, and that owners can only vote once.}]
   monitor MultiOwners {
   
       declarations{
@@ -849,7 +849,7 @@ In Listing.~\ref{dea:multi-owner} we specify this well-behaviour, in terms of tw
  
  Listing.~\ref{lt:auctionhouse} is an implementation of an auction house, allowing auctions to be started (Line 33), allowing people to make offers (Line 48), the auctioneer to start calling the auction (Line 40), and to declare a winning offer (Line 56). A winner can then fulfill their offer (Line 63).
  
-\small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={lt:auctionhouse}]
+\small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={lt:auctionhouse},caption={A auction house smart contract.}]
 pragma solidity ^0.4.24;
 
 contract SmartAuctionHouse{
@@ -951,7 +951,7 @@ For the first property (Lines 42-56), we transition to the \texttt{AuctionStart}
 
 For the second property (Lines 61-75), we only have an initial and bad state. For this property we require a mapping to keep track of unfulfilled offers (defined on Line 4). When a winning offer is declared the offer is marked as unfulfilled (Line 68), while upon fulfillment it is marked as fulfilled (Line 69). When a bidder makes an offer and has no unfulfilled bids (checked with the function defined on Lines 25-30) then the offer is allowed treated normally (Line 70), while if there are unfulfilled offers and the bid attempt counter for the bidder is less than three, the bid attempt counter for the bidder is increased (Line 71). If it is equal or more than three then any unfulfilled bids are canceled and the bid canceled (see Line 72, using the function defined on Lines 17-22). If the user attempts to fulfill a bid that has been canceled the property marks a violation (see Line 73) and cancels the transaction (Lines 36-38).
  
-\small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:auctionhouse}]
+\small\begin{lstlisting}[language=DEA,basicstyle=\scriptsize,numbers=left,numbersep=2pt,xleftmargin=0.3cm,escapechar=\%,label={dea:auctionhouse},caption={A monitor that checks that only one auction is ongoing at any point in time and setting time limits on when a winning bid needs to be fulfilled.}]
 monitor SmartAuctionHouse{
 
     declarations{
