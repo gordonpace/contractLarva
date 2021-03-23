@@ -230,7 +230,7 @@ instrumentContractSpecification monitor inliningFlag =
              addTopModifierToFunctionInContract contractName function
                (Identifier modifierName, functionParameters) |> (
              -- Define modifier to trigger transitions
-              \x -> (addContractPart contractName $ parser' $ modifierCode x contractName modifierName eventTypedParameters True ts) x
+              \x -> (addContractPart contractName $ parser' $ modifierCode x contractName modifierName eventTypedParameters False ts) x
              )
         instrumentForEvent (e@(VariableAssignment variableName _), ts) =
           let modifierName =  nameModifier e
