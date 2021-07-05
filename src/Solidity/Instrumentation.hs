@@ -90,7 +90,7 @@ variableIsDefinedInContract cn vn code =
 variableIsPublicInContract :: ContractName -> VariableName -> SolidityCode -> Bool
 variableIsPublicInContract cn vn code =
   let Just c = getContract cn code
-  in  "private" `notElem` head [ visibility vd |  ContractPartStateVariableDeclaration vd <- contractParts c, variableName vd == vn ]
+  in not $ null [ "public" |  ContractPartStateVariableDeclaration vd <- contractParts c, variableName vd == vn, "public" `elem` (visibility vd)]
 
 getVariableTypeInContract :: ContractName -> VariableName -> SolidityCode -> TypeName
 getVariableTypeInContract cn vn code =
