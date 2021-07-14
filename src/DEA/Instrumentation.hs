@@ -240,6 +240,7 @@ instrumentContractSpecification monitor notInlined =
               -- Add modifier to setter functions
               addTopModifierToFunctionsInContract contractName
                 [ Identifier ("LARVA_set_"++display variableName++"_pre")
+                , Identifier ("LARVA_set_"++display variableName++"_post")
                 ]
                 (Identifier modifierName, ExpressionList [])
 

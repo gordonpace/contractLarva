@@ -117,10 +117,10 @@ defineAndUseSetterFunctionForVariableInContract cn vn (fnPreValue, fnPostValue) 
     t = display variableType
     previousVariableValue = t++" private LARVA_previous_"++v++";"
     setterFunctionPostValue =
-      "function "++f'++"("++t++" _"++v++") "++visibilityOfVariable++" returns ("++t++") { "++
+      "function "++f'++"("++t++" _"++v++") "++"internal"++" returns ("++t++") { "++
         "LARVA_previous_"++v++" = "++v++"; "++v++" = _"++v++"; return "++v++"; }"
     setterFunctionPreValue =
-      "function "++f++"("++t++" _"++v++") "++visibilityOfVariable++" returns ("++t++") { "++
+      "function "++f++"("++t++" _"++v++") "++"internal"++" returns ("++t++") { "++
         "LARVA_previous_"++v++" = "++v++"; "++v++" = _"++v++"; return LARVA_previous_"++v++"; }"
 
 -- DEALING WITH CONSTRUCTORS
