@@ -43,11 +43,11 @@ main =
   do
     contractLarva <- getProgName
     arguments <- getArgs
-    ifNot (length arguments >= 3 || (length arguments == 4 && (elem "--init-inlined" arguments)))
-      ("Usage: "++contractLarva++" <specification> <input solidity file> <output solidity file> <--init-inlined>?")
+    ifNot (length arguments >= 3 || (length arguments == 4 && (elem "--init-not-inlined" arguments)))
+      ("Usage: "++contractLarva++" <specification> <input solidity file> <output solidity file> <--init-not-inlined>?")
     let ([specificationFile, inFile, outFile], flag) = if length arguments == 3
                                                         then (arguments, False)
-                                                        else (delete "--init-inlined" arguments, True)
+                                                        else (delete "--init-not-inlined" arguments, True)
     specificationText <- readFile specificationFile
       `failWith` ("Cannot read specification file <"++specificationFile++">")
     specification <- parseIO specificationFile specificationText

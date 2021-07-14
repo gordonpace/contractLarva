@@ -30,7 +30,7 @@ import Solidity
 import Debug.Trace
 
 instrumentContractSpecification :: ContractSpecification -> Bool -> Instrumentation
-instrumentContractSpecification monitor inliningFlag =
+instrumentContractSpecification monitor notInlined =
   -- (i)  Rename contract to LARVA_contract
     renameContract (contract, contract') |>
         --rename old-style constructor to new contract name
@@ -125,6 +125,7 @@ instrumentContractSpecification monitor inliningFlag =
               addTopModifierToContractConstructor contract' (Identifier "LARVA_Constructor", ExpressionList []))
 
   where
+    inliningFlag = not notInlined
     contract = contractName monitor
     contract' = Identifier $ "LARVA_" ++ display contract
 
@@ -239,7 +240,6 @@ instrumentContractSpecification monitor inliningFlag =
               -- Add modifier to setter functions
               addTopModifierToFunctionsInContract contractName
                 [ Identifier ("LARVA_set_"++display variableName++"_pre")
-                , Identifier ("LARVA_set_"++display variableName++"_post")
                 ]
                 (Identifier modifierName, ExpressionList [])
 
