@@ -111,17 +111,37 @@ defineAndUseSetterFunctionForVariableInContract cn vn (fnPreValue, fnPostValue) 
     variableType = getVariableTypeInContract cn vn code
     visibilityOfVariable = if variableIsPublicInContract cn vn code then "public" else "private"
 
+    indexedType (TypeNameArrayTypeName typeName expr) = True
+    indexedType (TypeNameMapping elementaryTypeName typeName) = True
+    indexedType x = False
+
+    keyParam (TypeNameArrayTypeName typeName expr) = TypeNameElementaryTypeName (IntType Nothing)
+    keyParam (TypeNameMapping elementaryTypeName typeName) = TypeNameElementaryTypeName elementaryTypeName
+    keyParam x = x
+
+    valueType (TypeNameArrayTypeName typeName expr) = typeName
+    valueType (TypeNameMapping elementaryTypeName typeName) = typeName
+    valueType x = x
+
     f = display fnPreValue
     f' = display fnPostValue
     v = display vn
-    t = display variableType
-    previousVariableValue = t++" private LARVA_previous_"++v++";"
-    setterFunctionPostValue =
-      "function "++f'++"("++t++" _"++v++") "++"internal"++" returns ("++t++") { "++
-        "LARVA_previous_"++v++" = "++v++"; "++v++" = _"++v++"; return "++v++"; }"
-    setterFunctionPreValue =
-      "function "++f++"("++t++" _"++v++") "++"internal"++" returns ("++t++") { "++
-        "LARVA_previous_"++v++" = "++v++"; "++v++" = _"++v++"; return LARVA_previous_"++v++"; }"
+    key = display $ keyParam variableType
+    value = display $ valueType variableType
+
+    previousVariableValue = value++" private LARVA_previous_"++v++";"
+    setterFunctionPostValue = 
+      if indexedType variableType
+        then "function "++f'++"("++key++" _index, "++value++" _"++v++") "++"internal"++" returns ("++value++") { "++
+              "LARVA_previous_"++v++" = "++v++"; "++v++"[_index] = _"++v++"; return "++v++"; }"
+        else "function "++f'++"("++value++" _"++v++") "++"internal"++" returns ("++value++") { "++
+                "LARVA_previous_"++v++" = "++v++"; "++v++" = _"++v++"; return "++v++"; }"
+    setterFunctionPreValue = 
+      if indexedType variableType
+        then "function "++f++"("++key++" _index, "++value++" _"++v++") "++"internal"++" returns ("++value++") { "++
+                "LARVA_previous_"++v++" = "++v++"; "++v++"[_index] = _"++v++"; return LARVA_previous_"++v++"; }"
+        else "function "++f++"("++value++" _"++v++") "++"internal"++" returns ("++value++") { "++
+                "LARVA_previous_"++v++" = "++v++"; "++v++" = _"++v++"; return LARVA_previous_"++v++"; }"
 
 -- DEALING WITH CONSTRUCTORS
 
@@ -645,15 +665,28 @@ instance SolidityNode Expression where
 
   useSetterForVariableInContract cn vn fns (Unary op e) = Unary op $ useSetterForVariableInContract cn vn fns e
   useSetterForVariableInContract cn vn fns@(_,fn) (Binary op e1 e2)
-    | op `elem` assignmentOperators && assignmentToVariable =
-      FunctionCallExpressionList
-        (Literal (PrimaryExpressionIdentifier fn))
-          (Just (ExpressionList [e2'']))
+    | op `elem` assignmentOperators =
+        if assignmentToVariable
+          then FunctionCallExpressionList
+                  (Literal (PrimaryExpressionIdentifier fn))
+                    (Just (ExpressionList [e2'']))
+          else if fst $ assignmentToMappingOrArray e1
+                 then FunctionCallExpressionList
+                        (Literal (PrimaryExpressionIdentifier fn))
+                          (Just (ExpressionList $ prependIfNothing (snd $ assignmentToMappingOrArray e1) [e2'']))
+                 else Binary op e1 e2''
     where
       assignmentOperators = ["=", "|=", "^=", "&=", "<<=", ">>=", "+=", "-=", "*=", "/=", "%="]
       assignmentToVariable = e1 == Literal (PrimaryExpressionIdentifier vn)
+      assignmentToMappingOrArray (Binary "[]" (Literal (PrimaryExpressionIdentifier id)) index) = 
+                                                              if id == vn
+                                                                 then (True, Just index)
+                                                                 else (False, Nothing)
+      assignmentToMappingOrArray _ = (False, Nothing)
       e2' = useSetterForVariableInContract cn vn fns e2
       e2'' = if op == "=" then e2' else Binary (init op) (Unary "()" e1) (Unary "()" e2')
+      prependIfNothing (Just expr) list = (expr:list)
+      prependIfNothing (Nothing) list = (list)
   useSetterForVariableInContract cn vn fns (Binary op e1 e2) =
     Binary op (useSetterForVariableInContract cn vn fns e1) (useSetterForVariableInContract cn vn fns e2)
   useSetterForVariableInContract cn vn fns (Ternary op e1 e2 e3) =
