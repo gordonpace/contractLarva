@@ -97,12 +97,22 @@ getVariableTypeInContract cn vn code =
   let Just c = getContract cn code
   in  head [ typename vd |  ContractPartStateVariableDeclaration vd <- contractParts c, variableName vd == vn ]
 
+getStructVariableNamesInContract :: ContractName -> TypeName -> SolidityCode -> [Identifier]
+getStructVariableNamesInContract cn (TypeNameUserDefinedTypeName (UserDefinedTypeName (name:ids))) code =
+  let Just c = getContract cn code
+  in [ variableDeclarationName vd |  ContractPartStructDefinition id vds <- contractParts c, name == id, vd <- vds]
+getStructVariableNamesInContract _ _ _ = []
+
+isUserDefinedTypeName :: TypeName -> Bool
+isUserDefinedTypeName (TypeNameUserDefinedTypeName _) = True
+isUserDefinedTypeName x = False
+
 defineAndUseSetterFunctionForVariableInContract :: ContractName -> VariableName -> (FunctionName, FunctionName) -> Instrumentation
 defineAndUseSetterFunctionForVariableInContract cn vn (fnPreValue, fnPostValue) code 
   | variableIsDefinedInContract cn vn code = 
       addFunctionDefinitionToContract cn (parseDeclaration setterFunctionPreValue) $
       addFunctionDefinitionToContract cn (parseDeclaration setterFunctionPostValue) $
-      useSetterForVariableInContract cn vn (fnPreValue, fnPostValue) $
+      useSetterForVariableInContract cn vn (fnPreValue, fnPostValue) code $
       makeVariablePrivateInContract cn vn $
       addGlobalVariableDeclarationToContract cn (parseDeclaration previousVariableValue)
       code 
@@ -110,7 +120,9 @@ defineAndUseSetterFunctionForVariableInContract cn vn (fnPreValue, fnPostValue) 
   where
     variableType = getVariableTypeInContract cn vn code
     visibilityOfVariable = if variableIsPublicInContract cn vn code then "public" else "private"
-
+    
+    structType = isUserDefinedTypeName
+    
     indexedType (TypeNameArrayTypeName typeName expr) = True
     indexedType (TypeNameMapping elementaryTypeName typeName) = True
     indexedType x = False
@@ -132,16 +144,28 @@ defineAndUseSetterFunctionForVariableInContract cn vn (fnPreValue, fnPostValue) 
     previousVariableValue = value++" private LARVA_previous_"++v++";"
     setterFunctionPostValue = 
       if indexedType variableType
-        then "function "++f'++"("++key++" _index, "++value++" _"++v++") "++"internal"++" returns ("++value++") { "++
-              "LARVA_previous_"++v++" = "++v++"; "++v++"[_index] = _"++v++"; return "++v++"; }"
-        else "function "++f'++"("++value++" _"++v++") "++"internal"++" returns ("++value++") { "++
-                "LARVA_previous_"++v++" = "++v++"; "++v++" = _"++v++"; return "++v++"; }"
+        then "function "++f'++"("++key++" _index, "++value++" _"++v++"_value) "++"internal"++" returns ("++value++") { "++
+              "LARVA_previous_"++v++"_value = "++v++"; "++v++"[_index] = _"++v++"_value; return "++v++"; }"
+        else if structType variableType
+              then "function "++f'++"(uint _field, "++value++" _"++v++"_value) "++"internal"++" returns ("++value++") { "++
+                    "LARVA_previous_"++v++" = "++v++"; " ++(structFieldCheckingCode v)++" return "++v++"; }"
+              else "function "++f'++"("++value++" _"++v++") "++"internal"++" returns ("++value++") { "++
+                    "LARVA_previous_"++v++" = "++v++"; "++v++" = _"++v++"; return "++v++"; }"
     setterFunctionPreValue = 
       if indexedType variableType
-        then "function "++f++"("++key++" _index, "++value++" _"++v++") "++"internal"++" returns ("++value++") { "++
-                "LARVA_previous_"++v++" = "++v++"; "++v++"[_index] = _"++v++"; return LARVA_previous_"++v++"; }"
-        else "function "++f++"("++value++" _"++v++") "++"internal"++" returns ("++value++") { "++
-                "LARVA_previous_"++v++" = "++v++"; "++v++" = _"++v++"; return LARVA_previous_"++v++"; }"
+        then "function "++f++"("++key++" _index, "++value++" _"++v++"_value) "++"internal"++" returns ("++value++") { "++
+                "LARVA_previous_"++v++"_value = "++v++"; "++v++"[_index] = _"++v++"_value; return LARVA_previous_"++v++"; }"
+        else if structType variableType
+              then "function "++f++"("++value++" _"++v++") "++"internal"++" returns ("++value++") { "++
+                      "LARVA_previous_"++v++" = "++v++"; " ++(structFieldCheckingCode v)++" return LARVA_previous_"++v++"; }"
+              else "function "++f++"("++value++" _"++v++") "++"internal"++" returns ("++value++") { "++
+                      "LARVA_previous_"++v++" = "++v++"; "++v++" = _"++v++"; return LARVA_previous_"++v++"; }"
+
+    structFieldCheckingCode1 :: String -> [Identifier] -> Integer -> String
+    structFieldCheckingCode1 name [] _ = ""
+    structFieldCheckingCode1 name (id:[]) n = "if(_field == "++show n++"){"++name++"."++(unIdentifier id)++" == "++"_"++v++"_value;}"
+    structFieldCheckingCode1 name (id:ids) n = structFieldCheckingCode1 name (id:[]) n ++ "else " ++ structFieldCheckingCode1 name ids (n + 1)
+    structFieldCheckingCode name = structFieldCheckingCode1 name (getStructVariableNamesInContract cn variableType code) 0
 
 -- DEALING WITH CONSTRUCTORS
 
@@ -348,8 +372,8 @@ class SolidityNode a where
   renameModifiersWithinContract :: Identifier -> (Identifier -> Identifier) -> a -> a
 
   makeVariablePrivateInContract :: Identifier -> Identifier -> a -> a
-  useSetterForVariableInContract :: Identifier -> Identifier -> (Identifier, Identifier) -> a -> a
-  -- (given contract, variable name, setter function names (return previous value, return after value))
+  useSetterForVariableInContract :: Identifier -> Identifier -> (Identifier, Identifier) -> SolidityCode -> a -> a
+  -- (given contract, variable name, setter function names, original code, (return previous value, return after value))
 
   contractsDefined _ = []
   functionsDefined _ = []
@@ -369,7 +393,7 @@ class SolidityNode a where
   renameModifiersWithinContract _ _ = id
 
   makeVariablePrivateInContract _ _ = id
-  useSetterForVariableInContract _ _ _ = id
+  useSetterForVariableInContract _ _ _ _ = id
 
 
 instance SolidityNode SolidityCode where
@@ -393,7 +417,7 @@ instance SolidityNode SolidityCode where
   makeVariablePrivateInContract cn vn c@(SolidityCode u)
     | variableIsDefinedInContract cn vn c = SolidityCode $ makeVariablePrivateInContract cn vn u
   makeVariablePrivateInContract _ _ c = c 
-  useSetterForVariableInContract cn vn fns (SolidityCode u) = SolidityCode $ useSetterForVariableInContract cn vn fns u
+  useSetterForVariableInContract cn vn fns code (SolidityCode u) = SolidityCode $ useSetterForVariableInContract cn vn fns code u
 
 
 instance SolidityNode SourceUnit where
@@ -416,7 +440,7 @@ instance SolidityNode SourceUnit where
   modifiersDefined (SourceUnit us) = concatMap modifiersDefined us
 
   makeVariablePrivateInContract cn vn (SourceUnit us) = SourceUnit $ map (makeVariablePrivateInContract cn vn) us
-  useSetterForVariableInContract cn vn fns (SourceUnit us) = SourceUnit $ map (useSetterForVariableInContract cn vn fns) us
+  useSetterForVariableInContract cn vn fns code (SourceUnit us) = SourceUnit $ map (useSetterForVariableInContract cn vn fns code) us
 
 
 instance SolidityNode SourceUnit1 where
@@ -469,9 +493,9 @@ instance SolidityNode SourceUnit1 where
     SourceUnit1_ContractDefinition $ makeVariablePrivateInContract cn vn c
   makeVariablePrivateInContract _ _ su = su
 
-  useSetterForVariableInContract cn vn fns (SourceUnit1_ContractDefinition c) =
-    SourceUnit1_ContractDefinition $ useSetterForVariableInContract cn vn fns c
-  useSetterForVariableInContract _ _ _ su = su
+  useSetterForVariableInContract cn vn fns code (SourceUnit1_ContractDefinition c) =
+    SourceUnit1_ContractDefinition $ useSetterForVariableInContract cn vn fns code c
+  useSetterForVariableInContract _ _ _ _ su = su
 
 instance SolidityNode ContractDefinition where
   getContract cn c | definitionType c == "contract" && definitionName c == cn = Just c
@@ -528,10 +552,10 @@ instance SolidityNode ContractDefinition where
     = c { contractParts = map (makeVariablePrivateInContract cn vn) (contractParts c) }
   makeVariablePrivateInContract _ _ c = c
 
-  useSetterForVariableInContract cn vn fns c
+  useSetterForVariableInContract cn vn fns code c 
     | definitionType c == "contract" && definitionName c == cn
-    = c { contractParts = map (useSetterForVariableInContract cn vn fns) (contractParts c) }
-  useSetterForVariableInContract _ _ _ c = c
+    = c { contractParts = map (useSetterForVariableInContract cn vn fns code) (contractParts c) }
+  useSetterForVariableInContract _ _ _ _ c = c
 
 
 instance SolidityNode ContractPart where
@@ -605,108 +629,138 @@ instance SolidityNode ContractPart where
     = ContractPartStateVariableDeclaration (vd { visibility = (visibility vd \\ ["public"]) `union` ["private"] })
   makeVariablePrivateInContract _ _ c = c
 
-  useSetterForVariableInContract cn vn fns (ContractPartModifierDefinition mn pl b) =
-    ContractPartModifierDefinition mn pl $ useSetterForVariableInContract cn vn fns b
-  useSetterForVariableInContract cn vn fns (ContractPartFunctionDefinition mfn pl ts rt (Just b)) =
-    ContractPartFunctionDefinition mfn pl ts rt $ Just $ useSetterForVariableInContract cn vn fns b
-  useSetterForVariableInContract _ _ _ cp = cp
+  useSetterForVariableInContract cn vn fns code (ContractPartModifierDefinition mn pl b) =
+    ContractPartModifierDefinition mn pl $ useSetterForVariableInContract cn vn fns code b
+  useSetterForVariableInContract cn vn fns code (ContractPartFunctionDefinition mfn pl ts rt (Just b)) =
+    ContractPartFunctionDefinition mfn pl ts rt $ Just $ useSetterForVariableInContract cn vn fns code b
+  useSetterForVariableInContract _ _ _ _ cp = cp
 
 
 instance SolidityNode Block where
-  useSetterForVariableInContract cn vn fns (Block ss) =
-    Block $ map (useSetterForVariableInContract cn vn fns) ss
+  useSetterForVariableInContract cn vn fns code (Block ss) =
+    Block $ map (useSetterForVariableInContract cn vn fns code) ss
 
 
 instance SolidityNode Statement where
-  useSetterForVariableInContract cn vn fns (IfStatement e s1 ms2) =
+  useSetterForVariableInContract cn vn fns code (IfStatement e s1 ms2) =
     IfStatement
-      (useSetterForVariableInContract cn vn fns e)
-        (useSetterForVariableInContract cn vn fns s1)
-          (useSetterForVariableInContract cn vn fns <$> ms2)
-  useSetterForVariableInContract cn vn fns (WhileStatement e s) =
-    WhileStatement (useSetterForVariableInContract cn vn fns e) (useSetterForVariableInContract cn vn fns s)
-  useSetterForVariableInContract cn vn fns (DoWhileStatement s e) =
-    DoWhileStatement (useSetterForVariableInContract cn vn fns s) (useSetterForVariableInContract cn vn fns e)
-  useSetterForVariableInContract cn vn fns (BlockStatement b) =
-    BlockStatement $ useSetterForVariableInContract cn vn fns b
-  useSetterForVariableInContract cn vn fns (Return (Just e)) =
-    Return $ Just $ useSetterForVariableInContract cn vn fns e
-  useSetterForVariableInContract cn vn fns (ForStatement (ms, me1, me2) s1) =
+      (useSetterForVariableInContract cn vn fns code e)
+        (useSetterForVariableInContract cn vn fns code s1)
+          (useSetterForVariableInContract cn vn fns code <$> ms2)
+  useSetterForVariableInContract cn vn fns code (WhileStatement e s) =
+    WhileStatement (useSetterForVariableInContract cn vn fns code e) (useSetterForVariableInContract cn vn fns code s)
+  useSetterForVariableInContract cn vn fns code (DoWhileStatement s e) =
+    DoWhileStatement (useSetterForVariableInContract cn vn fns code s) (useSetterForVariableInContract cn vn fns code e)
+  useSetterForVariableInContract cn vn fns code (BlockStatement b) =
+    BlockStatement $ useSetterForVariableInContract cn vn fns code b
+  useSetterForVariableInContract cn vn fns code (Return (Just e)) =
+    Return $ Just $ useSetterForVariableInContract cn vn fns code e
+  useSetterForVariableInContract cn vn fns code (ForStatement (ms, me1, me2) s1) =
     ForStatement
-      (useSetterForVariableInContract cn vn fns <$> ms,
-        useSetterForVariableInContract cn vn fns <$> me1,
-          useSetterForVariableInContract cn vn fns <$> me2)
-            (useSetterForVariableInContract cn vn fns s1)
-  useSetterForVariableInContract cn vn fns (SimpleStatementExpression e) =
-    SimpleStatementExpression $ useSetterForVariableInContract cn vn fns e
-  useSetterForVariableInContract cn vn fns (SimpleStatementVariableDeclarationList vds es) =
-    SimpleStatementVariableDeclarationList vds (useSetterForVariableInContract cn vn fns <$> es)
-  useSetterForVariableInContract cn vn fns (SimpleStatementVariableAssignmentList ids es) =
-    SimpleStatementVariableAssignmentList ids (useSetterForVariableInContract cn vn fns <$> es)
-  useSetterForVariableInContract cn vn fns (SimpleStatementVariableList il e) =
-    SimpleStatementVariableList il (useSetterForVariableInContract cn vn fns <$> e)
-  useSetterForVariableInContract _ _ _ s = s
+      (useSetterForVariableInContract cn vn fns code <$> ms,
+        useSetterForVariableInContract cn vn fns code <$> me1,
+          useSetterForVariableInContract cn vn fns code <$> me2)
+            (useSetterForVariableInContract cn vn fns code s1)
+  useSetterForVariableInContract cn vn fns code (SimpleStatementExpression e) =
+    SimpleStatementExpression $ useSetterForVariableInContract cn vn fns code e
+  useSetterForVariableInContract cn vn fns code (SimpleStatementVariableDeclarationList vds es) =
+    SimpleStatementVariableDeclarationList vds (useSetterForVariableInContract cn vn fns code <$> es)
+  useSetterForVariableInContract cn vn fns code (SimpleStatementVariableAssignmentList ids es) =
+    SimpleStatementVariableAssignmentList ids (useSetterForVariableInContract cn vn fns code <$> es)
+  useSetterForVariableInContract cn vn fns code (SimpleStatementVariableList il e) =
+    SimpleStatementVariableList il (useSetterForVariableInContract cn vn fns code <$> e)
+  useSetterForVariableInContract _ _ _ _ s = s
 
 
 instance SolidityNode Expression where
   -- here
-  useSetterForVariableInContract _ vn (fnPreValue,fnPostValue) (Unary op e)
-    | op `elem` assignmentOperators && assignmentToVariable =
-      FunctionCallExpressionList
-        (Literal (PrimaryExpressionIdentifier fn))
-          (Just (ExpressionList [e']))
+  useSetterForVariableInContract cn vn (fnPreValue,fnPostValue) code (Unary op e)
+    | op `elem` assignmentOperators =
+      if assignmentToVariable
+        then FunctionCallExpressionList
+              (Literal (PrimaryExpressionIdentifier fn))
+                (Just (ExpressionList [e']))
+        else if fst $ assignmentToMappingOrArrayOrStruct e
+                 then FunctionCallExpressionList
+                        (Literal (PrimaryExpressionIdentifier fn))
+                          (Just (ExpressionList $ prependIfNothing (snd $ assignmentToMappingOrArrayOrStruct e) [e']))
+                 else Unary op e
     where
       assignmentOperators = ["++","--","()--","()++"]
       assignmentToVariable = e == Literal (PrimaryExpressionIdentifier vn)
+      assignmentToMappingOrArrayOrStruct (Binary "[]" (Literal (PrimaryExpressionIdentifier id)) index) = 
+                                                              if id == vn
+                                                                 then (True, Just index)
+                                                                 else (False, Nothing)
+      assignmentToMappingOrArrayOrStruct (MemberAccess (Literal (PrimaryExpressionIdentifier id)) i) = 
+                                                              if id == vn
+                                                                 then (True, maybeIntToMaybeExpr $ elemIndex i (getStructVariableNamesInContract cn variableType code))
+                                                                 else (False, Nothing)
+        where 
+          variableType = getVariableTypeInContract cn id code
+          maybeIntToMaybeExpr Nothing = Nothing
+          maybeIntToMaybeExpr (Just i) = Just (Literal (PrimaryExpressionNumberLiteral (NumberLiteralDec (show i) Nothing)))
+      assignmentToMappingOrArrayOrStruct _ = (False, Nothing)
+
 
       fn = if head op == '(' then fnPreValue else fnPostValue -- _++/_-- uses the pre-value, otherwise use post-value
       op' = if '+' `elem` op then "+" else "-" -- change ++ into addition, -- into subtraction
       e' = Binary op' (Unary "()" e) (Literal (PrimaryExpressionNumberLiteral (NumberLiteralDec "1" Nothing)))
+      prependIfNothing (Just expr) list = (expr:list)
+      prependIfNothing (Nothing) list = (list)
 
-  useSetterForVariableInContract cn vn fns (Unary op e) = Unary op $ useSetterForVariableInContract cn vn fns e
-  useSetterForVariableInContract cn vn fns@(_,fn) (Binary op e1 e2)
+  useSetterForVariableInContract cn vn fns code (Unary op e) = Unary op $ useSetterForVariableInContract cn vn fns code e
+  useSetterForVariableInContract cn vn fns@(_,fn) code (Binary op e1 e2)
     | op `elem` assignmentOperators =
         if assignmentToVariable
           then FunctionCallExpressionList
                   (Literal (PrimaryExpressionIdentifier fn))
                     (Just (ExpressionList [e2'']))
-          else if fst $ assignmentToMappingOrArray e1
+          else if fst $ assignmentToMappingOrArrayOrStruct e1
                  then FunctionCallExpressionList
                         (Literal (PrimaryExpressionIdentifier fn))
-                          (Just (ExpressionList $ prependIfNothing (snd $ assignmentToMappingOrArray e1) [e2'']))
+                          (Just (ExpressionList $ prependIfNothing (snd $ assignmentToMappingOrArrayOrStruct e1) [e2'']))
                  else Binary op e1 e2''
     where
       assignmentOperators = ["=", "|=", "^=", "&=", "<<=", ">>=", "+=", "-=", "*=", "/=", "%="]
       assignmentToVariable = e1 == Literal (PrimaryExpressionIdentifier vn)
-      assignmentToMappingOrArray (Binary "[]" (Literal (PrimaryExpressionIdentifier id)) index) = 
+      assignmentToMappingOrArrayOrStruct (Binary "[]" (Literal (PrimaryExpressionIdentifier id)) index) = 
                                                               if id == vn
                                                                  then (True, Just index)
                                                                  else (False, Nothing)
-      assignmentToMappingOrArray _ = (False, Nothing)
-      e2' = useSetterForVariableInContract cn vn fns e2
+      assignmentToMappingOrArrayOrStruct (MemberAccess (Literal (PrimaryExpressionIdentifier id)) i) = 
+                                                              if id == vn
+                                                                 then (True, maybeIntToMaybeExpr $ elemIndex i (getStructVariableNamesInContract cn variableType code))
+                                                                 else (False, Nothing)
+        where 
+          variableType = getVariableTypeInContract cn id code
+          maybeIntToMaybeExpr Nothing = Nothing
+          maybeIntToMaybeExpr (Just i) = Just (Literal (PrimaryExpressionNumberLiteral (NumberLiteralDec (show i) Nothing)))
+      assignmentToMappingOrArrayOrStruct _ = (False, Nothing)
+      e2' = useSetterForVariableInContract cn vn fns code e2
       e2'' = if op == "=" then e2' else Binary (init op) (Unary "()" e1) (Unary "()" e2')
       prependIfNothing (Just expr) list = (expr:list)
       prependIfNothing (Nothing) list = (list)
-  useSetterForVariableInContract cn vn fns (Binary op e1 e2) =
-    Binary op (useSetterForVariableInContract cn vn fns e1) (useSetterForVariableInContract cn vn fns e2)
-  useSetterForVariableInContract cn vn fns (Ternary op e1 e2 e3) =
+  useSetterForVariableInContract cn vn fns code (Binary op e1 e2) =
+    Binary op (useSetterForVariableInContract cn vn fns code e1) (useSetterForVariableInContract cn vn fns code e2)
+  useSetterForVariableInContract cn vn fns code (Ternary op e1 e2 e3) =
     Ternary op
-      (useSetterForVariableInContract cn vn fns e1)
-        (useSetterForVariableInContract cn vn fns e2)
-          (useSetterForVariableInContract cn vn fns e3)
-  useSetterForVariableInContract cn vn fns (FunctionCallNameValueList e ps) =
-    FunctionCallNameValueList (useSetterForVariableInContract cn vn fns e) ps
-  useSetterForVariableInContract cn vn fns (FunctionCallExpressionList e ps) =
+      (useSetterForVariableInContract cn vn fns code e1)
+        (useSetterForVariableInContract cn vn fns code e2)
+          (useSetterForVariableInContract cn vn fns code e3)
+  useSetterForVariableInContract cn vn fns code (FunctionCallNameValueList e ps) =
+    FunctionCallNameValueList (useSetterForVariableInContract cn vn fns code e) ps
+  useSetterForVariableInContract cn vn fns code (FunctionCallExpressionList e ps) =
     FunctionCallExpressionList
-      (useSetterForVariableInContract cn vn fns e)
-        (useSetterForVariableInContract cn vn fns <$> ps)
-  useSetterForVariableInContract cn vn fns (MemberAccess e i) =
-    MemberAccess (useSetterForVariableInContract cn vn fns e) i
-  useSetterForVariableInContract _ _ _ e = e
+      (useSetterForVariableInContract cn vn fns code e)
+        (useSetterForVariableInContract cn vn fns code <$> ps)    
+  useSetterForVariableInContract cn vn fns code (MemberAccess e i) =
+    MemberAccess (useSetterForVariableInContract cn vn fns code e) i
+  useSetterForVariableInContract _ _ _ _ e = e
 
 
 instance SolidityNode ExpressionList where
-  useSetterForVariableInContract cn vn fns el =
-    ExpressionList $ map (useSetterForVariableInContract cn vn fns) (unExpressionList el)
+  useSetterForVariableInContract cn vn fns code el =
+    ExpressionList $ map (useSetterForVariableInContract cn vn fns code) (unExpressionList el)
 
 

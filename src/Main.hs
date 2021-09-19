@@ -59,6 +59,9 @@ main =
     inputText <- readFile inFile
       `failWith` ("Cannot read Solidity file <"++inFile++">")
     inCode <- parseIO inFile inputText
+  
+    putStrLn (intercalate "\n" $ warningsSpecificationCode specification inCode)
+
     let outCode = instrumentSpecification specification flag inCode 
     writeFile outFile (display outCode)
       `failWith` ("Cannot write to Solidity file <"++outFile++">")
