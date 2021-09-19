@@ -172,6 +172,7 @@ data FunctionDefinitionTag
   | FunctionDefinitionTagStateMutability StateMutability
   | FunctionDefinitionTagPublic
   | FunctionDefinitionTagPrivate
+  | FunctionDefinitionTagInternal
   deriving (Show, Eq, Ord)
 
 -------------------------------------------------------------------------------
