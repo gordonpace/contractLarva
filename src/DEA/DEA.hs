@@ -35,6 +35,8 @@ import Solidity
 data Event
   = UponEntry FunctionCall
   | UponExit FunctionCall
+  | BeforeCall FunctionCall
+  | AfterCall FunctionCall
   | VariableAssignment VariableName (Maybe Expression)
   deriving (Eq, Ord, Show)
 

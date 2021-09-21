@@ -199,7 +199,9 @@ instance Parseable GCL where
 
 instance Parseable Event where
   parser =
+    try (BeforeCall <$> (readKeyword "beforecall" *> whitespace *> char '(' *> whitespace *> parser <* whitespace <* char ')')) <|>
     try (UponEntry <$> (readKeyword "before" *> whitespace *> char '(' *> whitespace *> parser <* whitespace <* char ')')) <|>
+    try (AfterCall <$> (readKeyword "aftercall" *> whitespace *> char '(' *> whitespace *> parser <* whitespace <* char ')')) <|>
     try (UponExit <$> (readKeyword "after" *> whitespace *> char '(' *> whitespace *> parser <* whitespace <* char ')')) <|>
     (VariableAssignment <$>
         (parser <* whitespace <* char '@' <* whitespace <* char '(' <* whitespace) <*>
@@ -208,14 +210,16 @@ instance Parseable Event where
 
   display (UponEntry fn) = "before("++display fn++")"
   display (UponExit fn) = "after("++display fn++")"
+  display (BeforeCall fn) = "beforecall("++display fn++")"
+  display (AfterCall fn) = "aftercall("++display fn++")"
   display (VariableAssignment vn e) = display vn ++maybe "" (\e -> "@("++display e++")") e
 
 instance Parseable FunctionCall where
-  parser =
-    do
-      fn <- parser <* whitespace
-      maybe_el <- parser
-      return (FunctionCall { functionName = fn, parametersPassed = maybe_el })
-
+  parser =  do
+              fn <- parser <* whitespace
+              maybe_el <- parser
+              return (FunctionCall { functionName = fn, parametersPassed = maybe_el })
+                
+                
   display fc = display (functionName fc) ++ maybe "" display (parametersPassed fc)
 
