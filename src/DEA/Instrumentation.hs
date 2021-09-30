@@ -149,6 +149,8 @@ instrumentContractSpecification monitor notInlined =
       where
         sameEvent (UponEntry f) (UponEntry f') = f==f'
         sameEvent (UponExit f) (UponExit f') = f==f'
+        sameEvent (BeforeCall f) (BeforeCall f') = f==f'
+        sameEvent (AfterCall f) (AfterCall f') = f==f'
         sameEvent (VariableAssignment v _) (VariableAssignment v' _) = v==v'
         sameEvent _ _ = False
 
@@ -185,6 +187,7 @@ instrumentContractSpecification monitor notInlined =
           maybe "__no_parameters" (\ps -> "__parameters_"++intercalate "_" (map display $ fromUntypedParameterList ps)) (parametersPassed fc)
         nameModifier (VariableAssignment vn _) =
           "LARVA_DEA_"++show deaNumber++"_handle_after_assignment_"++display vn
+        
 
 
         instrumentForEvent :: (Event, [Transition]) -> Instrumentation
@@ -233,6 +236,7 @@ instrumentContractSpecification monitor notInlined =
              -- Define modifier to trigger transitions
               \x -> (addContractPart contractName $ parser' $ modifierCode x contractName modifierName eventTypedParameters False ts) x
              )
+             
         instrumentForEvent (e@(VariableAssignment variableName _), ts) =
           let modifierName =  nameModifier e
           in  -- Define modifier to trigger transitions

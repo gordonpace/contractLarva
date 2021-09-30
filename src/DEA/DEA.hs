@@ -169,8 +169,10 @@ warningsContractSpecificationCode spec code = [s | dea <- deas spec, s <- warnin
 
 warningsDEACode :: DEA -> SolidityCode -> [String]
 warningsDEACode dea (SolidityCode (SourceUnit units)) =
-  [ "Variable <"++unIdentifier vn++"> passed to internal functions<" ++ (intercalate "," (map display (functionsPassedTo vn))) ++">, and thus not all modifications to it may be caught"
-  | vn <- mappingArrayOrStructVariableAssignments, [] /= functionsPassedTo vn]
+  [ "Variable <"++unIdentifier vn++"> passed to internal functions <" ++ (intercalate "," (map display (functionsPassedTo vn))) ++">, and thus not all modifications to it may be caught"
+  | vn <- mappingArrayOrStructVariableAssignments, [] /= functionsPassedTo vn] ++
+  [ "Variable <"++unIdentifier vn++"> has a range that is a struct, mapping, or array"
+  | vn <- mappingArrayOrStructVariableAssignments, hasMappingArrayOrStructAsRange vn]
   where
     mappingArrayOrStructVariableAssignments = removeDuplicates [vn | t <- transitions dea, VariableAssignment vn _ <- [event $ label t], isMappingArrayOrStruct vn]
     removeDuplicates [] = []
@@ -182,8 +184,9 @@ warningsDEACode dea (SolidityCode (SourceUnit units)) =
     isMappingArrayOrStruct vn = [] /= ([vn | TypeNameMapping _ _ <- getVariableTypesInContract vn] 
                                       ++ [vn | TypeNameArrayTypeName _ _ <- getVariableTypesInContract vn] 
                                       ++ [vn | TypeNameUserDefinedTypeName _ <- getVariableTypesInContract vn])
-    functionsPassedTo vn = (removeItems [Identifier "require", Identifier "assert", Identifier "payable"] $ variablePassedToFunction vn (SolidityCode (SourceUnit units)))
+    hasMappingArrayOrStructAsRange vn = [] /= [vn | TypeNameMapping _ (TypeNameMapping _ _) <- getVariableTypesInContract vn]
+    functionsPassedTo vn = (removeItems ["require", "assert", "payable"] $ variablePassedToFunction vn (SolidityCode (SourceUnit units)))
     removeItems _ [] = []
-    removeItems xs (y:ys) = if y `elem` xs
+    removeItems xs (y:ys) = if (unIdentifier y) `elem` xs
                             then removeItems xs ys
                             else (y: (removeItems xs ys))
