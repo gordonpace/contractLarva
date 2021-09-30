@@ -14,9 +14,9 @@
 \newcommand{\tildearrow}{{\raise.37ex\hbox{$\scriptstyle\mathtt{\sim}$}}>\xspace}
 
 \begin{document}
-\title{\contractlarva v0.2$\alpha$\\User Manual}
+\title{\contractlarva v0.21$\alpha$\\User Manual}
 \author{Gordon J. Pace and Joshua Ellul and Shaun Azzopardi\\\texttt{\{gordon.pace|joshua.ellul|shaun.azzopardi\}@um.edu.mt}}
-\date{5 December 2017, updated 11 October 2019}
+\date{5 December 2017, updated 11 October 2019, updated 6 September 2021}
 \maketitle
 
 
@@ -103,7 +103,7 @@ The automata used are, however, symbolic automata --- in that they may use and m
   \noindent There are two types of event triggers which can be used in \contractlarva:
   \begin{enumerate}[label=(\roman*)]
     \item \emph{Control-flow triggers} which trigger when a function is called or returns a value: (a) \texttt{before(function)}, triggers whenever \texttt{function} is called and before any of its code is executed\footnote{The checks and the code are instrumented as a modifier triggering before the function body is executed.}; and  (b) \texttt{after(function)}, triggers the moment \texttt{function} terminates successfully (i.e. not reverted). In both cases, if you want to read the value of the parameters, they can be specified in the event e.g. \texttt{before(payAmount(value))} can be written to have a condition dependent on the parameter. Parameters may be left out altogether if you do not wish to access them e.g.  \texttt{before(payAmount)}.
-    \item \emph{Data-flow triggers}, trigger when an assignment on a global variable occurs (even if the value of the variable does not change) --- \texttt{var@(condition)}  triggers whenever variable \texttt{var} is assigned to (just after the assignment is performed), with the \texttt{condition} holding. The condition is optional, in which case any assignment to the variable will trigger the event. Furthermore, the condition in variable assignment triggers can refer the value of variable \texttt{var} before the assignment using the syntax \texttt{LARVA\_previous\_var} e.g. to trigger when a variable \texttt{x} is assigned to a larger value, one would use the event \texttt{x@(x > LARVA\_previous\_x)}.
+    \item \emph{Data-flow triggers}, trigger when an assignment on a global variable occurs (even if the value of the variable does not change) --- \texttt{var@(condition)}  triggers whenever variable \texttt{var} is assigned to (just after the assignment is performed), with the \texttt{condition} holding. The condition is optional, in which case any assignment to the variable will trigger the event. Furthermore, the condition in variable assignment triggers can refer the value of variable \texttt{var} before the assignment using the syntax \texttt{LARVA\_previous\_var} e.g. to trigger when a variable \texttt{x} is assigned to a larger value, one would use the event \texttt{x@(x > LARVA\_previous\_x)}. When the variable in question is a mapping or array then instead of $LARVA\_previous\_x$ we use $LARVA\_previous\_x\_value$ to refer to the previous value at the edited position. For mappings and arrays we can also refer to the index being modified with the $\_index$ keyword. Struct modifications are also handled, but there is currently no way automatic way to identify the struct field being modified.
   \end{enumerate}
       
   \noindent The following is an example of a complete DEA property, using a global variable \texttt{total} to keep count of the running total of bets (we will see how to declare such variables in the script in the next section):
@@ -269,7 +269,7 @@ The automata used are, however, symbolic automata --- in that they may use and m
   
   \begin{description}
     \item[Monitorable triggers:] Currently, \contractlarva only supports triggers on (named) function calls and variable value updates. Smart contracts provide various other points-of-interest one can (and perhaps should) hook onto, including asset transfers (e.g. via \texttt{send} or \texttt{transfer}), other non-user defined functions (e.g. \texttt{selfdestruct}), fallback function invocations, reverted transactions, etc. The plan is to add the capability to observe these (and other) triggers in future versions of \contractlarva.   
-    \item[Variable assignment triggers:] Events firing on variable assignments are currently limited to global variables, and cannot be arrays, array elements, structures or structure fields. Furthermore, the variable name may not be reused as a local variable or a function parameter name (since assignments to these would also be wrongly changed). Finally note that initialisation of that variable (as part of its declaration) does not trigger DEA transitions.
+    \item[Variable assignment triggers:] Events firing on variable assignments are currently limited to global variables, and cannot be array elements or structure fields. Furthermore, the variable name may not be reused as a local variable or a function parameter name (since assignments to these would also be wrongly changed). Finally note that initialisation of that variable (as part of its declaration) does not trigger DEA transitions.
     \item[Function return value:] \contractlarva currently provides no means of referring to function return values in guards and actions in an \texttt{after(function)} event.
     \item[Structured reparation control:] Further options to control how reparation happens (e.g. whether the global reparation code is executed once or upon every violation, whether execution continues, etc.), and a library of reparation schemata to avoid having to program them from scratch are to be added to the tool. 
     \item[Initialisation parameters:] The initialisation code (which is effectively the body of the constructor of the new contract created) is currently restricted to be a parameterless public function.
