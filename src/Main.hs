@@ -60,7 +60,8 @@ main =
       `failWith` ("Cannot read Solidity file <"++inFile++">")
     inCode <- parseIO inFile inputText
   
-    putStrLn (intercalate "\n" $ warningsSpecificationCode specification inCode)
+    let warnings = warningsSpecificationCode specification inCode
+    ifNot (null warnings) (unlines warnings)
 
     let outCode = instrumentSpecification specification flag inCode 
     writeFile outFile (display outCode)
