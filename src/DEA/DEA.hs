@@ -169,7 +169,8 @@ warningsContractSpecificationCode spec code = [s | dea <- deas spec, s <- warnin
 
 warningsDEACode :: DEA -> SolidityCode -> [String]
 warningsDEACode dea (SolidityCode (SourceUnit units)) =
-  [ "Variable <"++unIdentifier vn++"> passed to internal functions <" ++ (intercalate "," (map display (functionsPassedTo vn))) ++">, and thus not all modifications to it may be caught"
+-- TODO Check that not passed to modifiers
+  [ "Variable <"++unIdentifier vn++"> passed to internal functions <" ++ (intercalate "," (functionsPassedTo vn)) ++">, and thus not all modifications to it may be caught"
   | vn <- mappingArrayOrStructVariableAssignments, [] /= functionsPassedTo vn] ++
   [ "Variable <"++unIdentifier vn++"> has a range that is a struct, mapping, or array"
   | vn <- mappingArrayOrStructVariableAssignments, hasMappingArrayOrStructAsRange vn]
@@ -185,8 +186,8 @@ warningsDEACode dea (SolidityCode (SourceUnit units)) =
                                       ++ [vn | TypeNameArrayTypeName _ _ <- getVariableTypesInContract vn] 
                                       ++ [vn | TypeNameUserDefinedTypeName _ <- getVariableTypesInContract vn])
     hasMappingArrayOrStructAsRange vn = [] /= [vn | TypeNameMapping _ (TypeNameMapping _ _) <- getVariableTypesInContract vn]
-    functionsPassedTo vn = (removeItems ["require", "assert", "payable"] $ variablePassedToFunction vn (SolidityCode (SourceUnit units)))
+    functionsPassedTo vn = (removeItems ["require", "assert", "payable", "address"] $ variablePassedToFunction vn (SolidityCode (SourceUnit units)))
     removeItems _ [] = []
-    removeItems xs (y:ys) = if (unIdentifier y) `elem` xs
+    removeItems xs (y:ys) = if y `elem` xs
                             then removeItems xs ys
                             else (y: (removeItems xs ys))
