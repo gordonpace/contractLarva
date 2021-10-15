@@ -33,7 +33,7 @@ module Solidity.Instrumentation (
   addTopModifierToAllButTheseFunctionInContract,
 
   functionIsPublicInContract, functionIsDefinedInContract,
-  defineAndUseSetterFunctionForVariableInContract,
+  defineAndUseSetterFunctionForVariableInContract, defineAndUseSetterFunctionForTransferInContract,
 
   variableIsDefinedInContract, variableIsPublicInContract, getVariableTypeInContract,
 
@@ -106,6 +106,14 @@ getStructVariableNamesInContract _ _ _ = []
 isUserDefinedTypeName :: TypeName -> Bool
 isUserDefinedTypeName (TypeNameUserDefinedTypeName _) = True
 isUserDefinedTypeName x = False
+
+defineAndUseSetterFunctionForTransferInContract :: ContractName -> Instrumentation
+defineAndUseSetterFunctionForTransferInContract cn code = 
+      addFunctionDefinitionToContract cn (parseDeclaration transferFunction) $
+      useSetterForVariableInContract cn (Identifier "unused") (Identifier "LARVA_transfer", Identifier "unused") code $
+      code
+  where
+    transferFunction = "function LARVA_transfer(address payable _to, uint amount) internal {_to.transfer(amount);}"
 
 defineAndUseSetterFunctionForVariableInContract :: ContractName -> VariableName -> (FunctionName, FunctionName) -> Instrumentation
 defineAndUseSetterFunctionForVariableInContract cn vn (fnPreValue, fnPostValue) code 
@@ -750,6 +758,10 @@ instance SolidityNode Expression where
           (useSetterForVariableInContract cn vn fns code e3)
   useSetterForVariableInContract cn vn fns code (FunctionCallNameValueList e ps) =
     FunctionCallNameValueList (useSetterForVariableInContract cn vn fns code e) ps
+  useSetterForVariableInContract cn vn fns@(fn,_) code ((FunctionCallExpressionList (MemberAccess target (Identifier "transfer")) (Just (ExpressionList expList)))) =
+      FunctionCallExpressionList
+            (Literal (PrimaryExpressionIdentifier fn))
+              (Just (ExpressionList (target:expList)))
   useSetterForVariableInContract cn vn fns code (FunctionCallExpressionList e ps) =
     FunctionCallExpressionList
       (useSetterForVariableInContract cn vn fns code e)
