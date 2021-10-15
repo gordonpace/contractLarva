@@ -94,6 +94,9 @@ instrumentContractSpecification monitor notInlined =
           ++ declarations monitor
     ) |>
 
+  -- (v.0) Add setters for transfer
+    defineAndUseSetterFunctionForTransferInContract contract' |>
+    
   -- (v) Add setters for relevant variables
     foldl (.) id
     [ defineAndUseSetterFunctionForVariableInContract contract' v
@@ -101,6 +104,7 @@ instrumentContractSpecification monitor notInlined =
     | v <- getVariablesFromContractSpecification monitor
     , let vn = display v
     ] |>
+
 
   -- Start instrumenting the DEAs
   -- (vi) Add variables to store state of each DEA: LARVA_STATE_n, all initialised to 0.
@@ -149,6 +153,8 @@ instrumentContractSpecification monitor notInlined =
       where
         sameEvent (UponEntry f) (UponEntry f') = f==f'
         sameEvent (UponExit f) (UponExit f') = f==f'
+        sameEvent (BeforeTransfer) (BeforeTransfer) = True
+        sameEvent (AfterTransfer) (AfterTransfer) = True
         sameEvent (VariableAssignment v _) (VariableAssignment v' _) = v==v'
         sameEvent _ _ = False
 
@@ -183,6 +189,10 @@ instrumentContractSpecification monitor notInlined =
         nameModifier (UponExit fc) =
           "LARVA_DEA_"++show deaNumber++"_handle_after_"++display (functionName fc)++
           maybe "__no_parameters" (\ps -> "__parameters_"++intercalate "_" (map display $ fromUntypedParameterList ps)) (parametersPassed fc)
+        nameModifier (BeforeTransfer) =
+          "LARVA_DEA_"++show deaNumber++"_handle_before_transfer"
+        nameModifier (AfterTransfer) =
+          "LARVA_DEA_"++show deaNumber++"_handle_after_transfer"
         nameModifier (VariableAssignment vn _) =
           "LARVA_DEA_"++show deaNumber++"_handle_after_assignment_"++display vn
 
@@ -241,6 +251,24 @@ instrumentContractSpecification monitor notInlined =
               addTopModifierToFunctionsInContract contractName
                 [ Identifier ("LARVA_set_"++display variableName++"_pre")
                 , Identifier ("LARVA_set_"++display variableName++"_post")
+                ]
+                (Identifier modifierName, ExpressionList [])
+        instrumentForEvent (e@(BeforeTransfer), ts) =
+          let modifierName =  nameModifier e
+          in  -- Define modifier to trigger transitions
+              (\x -> (addContractPart contractName $ parser' $ modifierCode x contractName modifierName Nothing False ts) x)|>
+              -- Add modifier to setter functions
+              addTopModifierToFunctionsInContract contractName
+                [ Identifier ("LARVA_transfer")
+                ]
+                (Identifier modifierName, ExpressionList [])
+        instrumentForEvent (e@(AfterTransfer), ts) =
+          let modifierName =  nameModifier e
+          in  -- Define modifier to trigger transitions
+              (\x -> (addContractPart contractName $ parser' $ modifierCode x contractName modifierName Nothing False ts) x)|>
+              -- Add modifier to setter functions
+              addTopModifierToFunctionsInContract contractName
+                [ Identifier ("LARVA_transfer")
                 ]
                 (Identifier modifierName, ExpressionList [])
 

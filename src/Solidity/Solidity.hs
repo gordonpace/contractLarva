@@ -506,12 +506,15 @@ addMemoryLocationToParametersList (ParameterList ps) = ParameterList (addMemoryL
 
 -- -------------------------------------------------------------------------------
 
-variablePassedToFunction :: VariableName -> SolidityCode -> [Identifier]
-variablePassedToFunction vn (SolidityCode (SourceUnit units)) = removeDuplicates ([vnn | FunctionCallExpressionList (Literal (PrimaryExpressionIdentifier vnn)) params <- allExpressions,
-                                                                                    Literal (PrimaryExpressionIdentifier vn) <- expressionClosure (FunctionCallExpressionList (Literal (PrimaryExpressionIdentifier vnn)) params)]
-                                                                                  ++
-                                                                                  [vnn | FunctionCallNameValueList (Literal (PrimaryExpressionIdentifier vnn)) params <- allExpressions,
-                                                                                    Literal (PrimaryExpressionIdentifier vn) <- expressionClosure (FunctionCallNameValueList (Literal (PrimaryExpressionIdentifier vnn)) params)])
+variablePassedToFunction :: VariableName -> SolidityCode -> [String]
+variablePassedToFunction vn (SolidityCode (SourceUnit units)) = 
+  removeDuplicates ([vnn | FunctionCallExpressionList (Literal 
+                      (PrimaryExpressionIdentifier (Identifier vnn)))
+                      params <- allExpressions,
+                      Literal (PrimaryExpressionIdentifier vnnn) <- expressionClosure (FunctionCallExpressionList (Literal (PrimaryExpressionIdentifier (Identifier vnn))) params), vnnn == vn]
+                    ++
+                    [vnn | FunctionCallNameValueList (Literal (PrimaryExpressionIdentifier (Identifier vnn))) params <- allExpressions,
+                      Literal (PrimaryExpressionIdentifier vnnn) <- expressionClosure (FunctionCallNameValueList (Literal (PrimaryExpressionIdentifier (Identifier vnn))) params), vnnn == vn])
   where
     contractPartss = [cp | SourceUnit1_ContractDefinition cd <- units, cp <- contractParts cd]
     modifierCodeBlocks = [b | ContractPartModifierDefinition _ _ b <- contractPartss]
