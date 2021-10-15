@@ -103,6 +103,12 @@ getStructVariableNamesInContract cn (TypeNameUserDefinedTypeName (UserDefinedTyp
   in [ variableDeclarationName vd |  ContractPartStructDefinition id vds <- contractParts c, name == id, vd <- vds]
 getStructVariableNamesInContract _ _ _ = []
 
+getStructVariableNamesAndTypesInContract :: ContractName -> TypeName -> SolidityCode -> [(Identifier, TypeName)]
+getStructVariableNamesAndTypesInContract cn (TypeNameUserDefinedTypeName (UserDefinedTypeName (name:ids))) code =
+  let Just c = getContract cn code
+  in [ (variableDeclarationName vd, variableDeclarationType vd) |  ContractPartStructDefinition id vds <- contractParts c, name == id, vd <- vds]
+getStructVariableNamesAndTypesInContract _ _ _ = []
+
 isUserDefinedTypeName :: TypeName -> Bool
 isUserDefinedTypeName (TypeNameUserDefinedTypeName _) = True
 isUserDefinedTypeName x = False
@@ -118,12 +124,12 @@ defineAndUseSetterFunctionForTransferInContract cn code =
 defineAndUseSetterFunctionForVariableInContract :: ContractName -> VariableName -> (FunctionName, FunctionName) -> Instrumentation
 defineAndUseSetterFunctionForVariableInContract cn vn (fnPreValue, fnPostValue) code 
   | variableIsDefinedInContract cn vn code = 
-      addFunctionDefinitionToContract cn (parseDeclaration setterFunctionPreValue) $
-      addFunctionDefinitionToContract cn (parseDeclaration setterFunctionPostValue) $
-      useSetterForVariableInContract cn vn (fnPreValue, fnPostValue) code $
+      addFunctionDefinitionsToContract cn (map parseDeclaration setterFunctionPreValues) $
+      addFunctionDefinitionsToContract cn (map parseDeclaration setterFunctionPostValues) $
+      useSetterForVariableInContract cn (trace ("vn: "++ display vn) vn) (fnPreValue, fnPostValue) code $
       makeVariablePrivateInContract cn vn $
-      addGlobalVariableDeclarationToContract cn (parseDeclaration previousVariableValue)
-      code 
+      addGlobalVariableDeclarationToContract cn (parseDeclaration previousVariableValue) $
+      code
   | otherwise = code
   where
     variableType = getVariableTypeInContract cn vn code
@@ -150,30 +156,35 @@ defineAndUseSetterFunctionForVariableInContract cn vn (fnPreValue, fnPostValue) 
     value = display $ valueType variableType
 
     previousVariableValue = value++" private LARVA_previous_"++v++";"
-    setterFunctionPostValue = 
+    setterFunctionPostValues = 
       if indexedType variableType
-        then "function "++f'++"("++key++" _index, "++value++" _"++v++"_value) "++"internal"++" returns ("++value++") { "++
-              "LARVA_previous_"++v++"_value = "++v++"; "++v++"[_index] = _"++v++"_value; return "++v++"; }"
-        else if structType variableType
-              then "function "++f'++"(uint _field, "++value++" _"++v++"_value) "++"internal"++" returns ("++value++") { "++
-                    "LARVA_previous_"++v++" = "++v++"; " ++(structFieldCheckingCode v)++" return "++v++"; }"
-              else "function "++f'++"("++value++" _"++v++") "++"internal"++" returns ("++value++") { "++
-                    "LARVA_previous_"++v++" = "++v++"; "++v++" = _"++v++"; return "++v++"; }"
-    setterFunctionPreValue = 
+        then ["function "++f'++"("++key++" _index, "++value++" _"++v++"_value) "++"internal"++" returns ("++value++") { "++
+              "LARVA_previous_"++v++"_value = "++v++"; "++v++"[_index] = _"++v++"_value; return "++v++"; }"]
+        else (if structType variableType
+                then structFieldCheckingCode v False
+                else [])
+              ++ ["function "++f'++"("++value++" _"++v++") "++"internal"++" returns ("++value++") { "++
+                    "LARVA_previous_"++v++" = "++v++"; "++v++" = _"++v++"; return "++v++"; }"]
+    setterFunctionPreValues = 
       if indexedType variableType
-        then "function "++f++"("++key++" _index, "++value++" _"++v++"_value) "++"internal"++" returns ("++value++") { "++
-                "LARVA_previous_"++v++"_value = "++v++"; "++v++"[_index] = _"++v++"_value; return LARVA_previous_"++v++"; }"
-        else if structType variableType
-              then "function "++f++"("++value++" _"++v++") "++"internal"++" returns ("++value++") { "++
-                      "LARVA_previous_"++v++" = "++v++"; " ++(structFieldCheckingCode v)++" return LARVA_previous_"++v++"; }"
-              else "function "++f++"("++value++" _"++v++") "++"internal"++" returns ("++value++") { "++
-                      "LARVA_previous_"++v++" = "++v++"; "++v++" = _"++v++"; return LARVA_previous_"++v++"; }"
+        then ["function "++f++"("++key++" _index, "++value++" _"++v++"_value) "++"internal"++" returns ("++value++") { "++
+                "LARVA_previous_"++v++"_value = "++v++"; "++v++"[_index] = _"++v++"_value; return LARVA_previous_"++v++"; }"]
+        else (if structType variableType
+                then structFieldCheckingCode v True
+                else [])
+              ++ ["function "++f++"("++value++" _"++v++") "++"internal"++" returns ("++value++") { "++
+                      "LARVA_previous_"++v++" = "++v++"; "++v++" = _"++v++"; return LARVA_previous_"++v++"; }"]
 
-    structFieldCheckingCode1 :: String -> [Identifier] -> Integer -> String
-    structFieldCheckingCode1 name [] _ = ""
-    structFieldCheckingCode1 name (id:[]) n = "if(_field == "++show n++"){"++name++"."++(unIdentifier id)++" == "++"_"++v++"_value;}"
-    structFieldCheckingCode1 name (id:ids) n = structFieldCheckingCode1 name (id:[]) n ++ "else " ++ structFieldCheckingCode1 name ids (n + 1)
-    structFieldCheckingCode name = structFieldCheckingCode1 name (getStructVariableNamesInContract cn variableType code) 0
+    structFieldCheckingCode1 :: String -> Bool -> [(Identifier,TypeName)] -> [String]
+    structFieldCheckingCode1 name _ [] = []
+    structFieldCheckingCode1 name pre ((id,t):ids) = ["function "++f++"_"++unIdentifier id++"("++display t++" _value) "++"internal"++" returns ("++display t++") { "++
+                      "LARVA_previous_"++v++" = "++v++"; "++v++"."++unIdentifier id++"= _value;" ++ 
+                      (if pre
+                        then " return LARVA_previous_"++v++"; }"
+                        else " return "++v++"; }")]
+                    ++ structFieldCheckingCode1 name pre ids
+
+    structFieldCheckingCode name pre = structFieldCheckingCode1 name pre(getStructVariableNamesAndTypesInContract cn variableType code)
 
 -- DEALING WITH CONSTRUCTORS
 
@@ -299,6 +310,14 @@ addGlobalVariableDeclarationToContract = addContractPart
 addModifierDefinitionToContract = addContractPart
 addFunctionDefinitionToContract = addContractPart
 addTypeDefinitionToContract = addContractPart
+
+addFunctionDefinitionsToContract ::
+    ContractName -> [ContractPart] -> Instrumentation
+addFunctionDefinitionsToContract cn [] code = code
+addFunctionDefinitionsToContract cn (cp:cps) code = 
+  (addFunctionDefinitionToContract cn cp)
+  $ (addFunctionDefinitionsToContract cn cps) 
+  $ code
 
 renameModifierInContract :: ContractName -> (ModifierName, ModifierName) -> Instrumentation
 renameModifierInContract contractName (modifierName, modifierName') =
@@ -673,7 +692,9 @@ instance SolidityNode Statement where
     SimpleStatementExpression $ useSetterForVariableInContract cn vn fns code e
   useSetterForVariableInContract cn vn fns code (SimpleStatementVariableDeclarationList vds es) =
     SimpleStatementVariableDeclarationList vds (useSetterForVariableInContract cn vn fns code <$> es)
-  useSetterForVariableInContract cn vn fns code (SimpleStatementVariableAssignmentList ids es) =
+  useSetterForVariableInContract cn vn fns code (SimpleStatementVariableAssignmentList ((Just id):[]) (e:[])) = 
+    useSetterForVariableInContract cn vn fns code (SimpleStatementExpression $ Binary "=" (Literal (PrimaryExpressionIdentifier id)) e)
+  useSetterForVariableInContract cn vn fns code (SimpleStatementVariableAssignmentList (ids) (es)) = 
     SimpleStatementVariableAssignmentList ids (useSetterForVariableInContract cn vn fns code <$> es)
   useSetterForVariableInContract cn vn fns code (SimpleStatementVariableList il e) =
     SimpleStatementVariableList il (useSetterForVariableInContract cn vn fns code <$> e)
@@ -688,27 +709,29 @@ instance SolidityNode Expression where
         then FunctionCallExpressionList
               (Literal (PrimaryExpressionIdentifier fn))
                 (Just (ExpressionList [e']))
-        else if fst $ assignmentToMappingOrArrayOrStruct e
+        else if fst $ assignmentToMappingOrArray e
                  then FunctionCallExpressionList
                         (Literal (PrimaryExpressionIdentifier fn))
-                          (Just (ExpressionList $ prependIfNothing (snd $ assignmentToMappingOrArrayOrStruct e) [e']))
-                 else Unary op e
+                          (Just (ExpressionList $ prependIfNothing (snd $ assignmentToMappingOrArray e) [e']))
+                 else if fst $ assignmentToStruct e
+                  then FunctionCallExpressionList
+                        (Literal (PrimaryExpressionIdentifier (Identifier $ (unIdentifier fn)++"_"++(snd $ assignmentToStruct e))))
+                          (Just (ExpressionList [e']))
+                  else Unary op e
     where
       assignmentOperators = ["++","--","()--","()++"]
       assignmentToVariable = e == Literal (PrimaryExpressionIdentifier vn)
-      assignmentToMappingOrArrayOrStruct (Binary "[]" (Literal (PrimaryExpressionIdentifier id)) index) = 
-                                                              if id == vn
-                                                                 then (True, Just index)
-                                                                 else (False, Nothing)
-      assignmentToMappingOrArrayOrStruct (MemberAccess (Literal (PrimaryExpressionIdentifier id)) i) = 
-                                                              if id == vn
-                                                                 then (True, maybeIntToMaybeExpr $ elemIndex i (getStructVariableNamesInContract cn variableType code))
-                                                                 else (False, Nothing)
-        where 
-          variableType = getVariableTypeInContract cn id code
-          maybeIntToMaybeExpr Nothing = Nothing
-          maybeIntToMaybeExpr (Just i) = Just (Literal (PrimaryExpressionNumberLiteral (NumberLiteralDec (show i) Nothing)))
-      assignmentToMappingOrArrayOrStruct _ = (False, Nothing)
+      assignmentToMappingOrArray (Binary "[]" (Literal (PrimaryExpressionIdentifier id)) index) = 
+                                    if id == vn
+                                        then (True, Just index)
+                                        else (False, Nothing)
+      assignmentToMappingOrArray _ = (False, Nothing)
+
+      assignmentToStruct (MemberAccess (Literal (PrimaryExpressionIdentifier id)) i) = 
+                                    if id == vn
+                                        then (True, display i)
+                                        else (False, "")
+      assignmentToStruct _ = (False, "")
 
 
       fn = if head op == '(' then fnPreValue else fnPostValue -- _++/_-- uses the pre-value, otherwise use post-value
@@ -724,27 +747,31 @@ instance SolidityNode Expression where
           then FunctionCallExpressionList
                   (Literal (PrimaryExpressionIdentifier fn))
                     (Just (ExpressionList [e2'']))
-          else if fst $ assignmentToMappingOrArrayOrStruct e1
-                 then FunctionCallExpressionList
-                        (Literal (PrimaryExpressionIdentifier fn))
-                          (Just (ExpressionList $ prependIfNothing (snd $ assignmentToMappingOrArrayOrStruct e1) [e2'']))
-                 else Binary op e1 e2''
+          else if fst $ assignmentToMappingOrArray e1
+                  then FunctionCallExpressionList
+                          (Literal (PrimaryExpressionIdentifier fn))
+                            (Just (ExpressionList $ prependIfNothing (snd $ assignmentToMappingOrArray e1) [e2'']))
+                  else if fst $ assignmentToStruct e1
+                          then FunctionCallExpressionList
+                                (Literal (PrimaryExpressionIdentifier (Identifier $ (unIdentifier fn)++"_"++(snd $ assignmentToStruct e1))))
+                                  (Just (ExpressionList [e2'']))
+                          else Binary op e1 e2''
+      | otherwise = trace (display e1) (Binary op e1 e2')
     where
       assignmentOperators = ["=", "|=", "^=", "&=", "<<=", ">>=", "+=", "-=", "*=", "/=", "%="]
       assignmentToVariable = e1 == Literal (PrimaryExpressionIdentifier vn)
-      assignmentToMappingOrArrayOrStruct (Binary "[]" (Literal (PrimaryExpressionIdentifier id)) index) = 
-                                                              if id == vn
-                                                                 then (True, Just index)
-                                                                 else (False, Nothing)
-      assignmentToMappingOrArrayOrStruct (MemberAccess (Literal (PrimaryExpressionIdentifier id)) i) = 
-                                                              if id == vn
-                                                                 then (True, maybeIntToMaybeExpr $ elemIndex i (getStructVariableNamesInContract cn variableType code))
-                                                                 else (False, Nothing)
-        where 
-          variableType = getVariableTypeInContract cn id code
-          maybeIntToMaybeExpr Nothing = Nothing
-          maybeIntToMaybeExpr (Just i) = Just (Literal (PrimaryExpressionNumberLiteral (NumberLiteralDec (show i) Nothing)))
-      assignmentToMappingOrArrayOrStruct _ = (False, Nothing)
+      assignmentToMappingOrArray (Binary "[]" (Literal (PrimaryExpressionIdentifier id)) index) = 
+                                    if id == vn
+                                        then (True, Just index)
+                                        else (False, Nothing)
+      assignmentToMappingOrArray _ = (False, Nothing)
+
+      assignmentToStruct (MemberAccess (Literal (PrimaryExpressionIdentifier id)) i) = 
+                                    if id == vn
+                                        then (True, display i)
+                                        else (False, "")
+      assignmentToStruct _ = (False, "")
+
       e2' = useSetterForVariableInContract cn vn fns code e2
       e2'' = if op == "=" then e2' else Binary (init op) (Unary "()" e1) (Unary "()" e2')
       prependIfNothing (Just expr) list = (expr:list)
@@ -769,7 +796,6 @@ instance SolidityNode Expression where
   useSetterForVariableInContract cn vn fns code (MemberAccess e i) =
     MemberAccess (useSetterForVariableInContract cn vn fns code e) i
   useSetterForVariableInContract _ _ _ _ e = e
-
 
 instance SolidityNode ExpressionList where
   useSetterForVariableInContract cn vn fns code el =
