@@ -169,8 +169,7 @@ warningsContractSpecificationCode spec code = [s | dea <- deas spec, s <- warnin
 
 warningsDEACode :: DEA -> SolidityCode -> [String]
 warningsDEACode dea (SolidityCode (SourceUnit units)) =
--- TODO Check that not passed to modifiers
-  [ "Variable <"++unIdentifier vn++"> passed to internal functions <" ++ (intercalate "," (functionsPassedTo vn)) ++">, and thus not all modifications to it may be caught"
+  [ "Variable <"++unIdentifier vn++"> passed to internal functions and/or modifiers <" ++ (intercalate "," (functionsPassedTo vn)) ++">, and thus not all modifications to it may be caught"
   | vn <- mappingArrayOrStructVariableAssignments, [] /= functionsPassedTo vn] ++
   [ "Variable <"++unIdentifier vn++"> has a range that is a struct, mapping, or array"
   | vn <- mappingArrayOrStructVariableAssignments, hasMappingArrayOrStructAsRange vn]

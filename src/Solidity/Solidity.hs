@@ -506,6 +506,7 @@ addMemoryLocationToParametersList (ParameterList ps) = ParameterList (addMemoryL
 
 -- -------------------------------------------------------------------------------
 
+
 variablePassedToFunction :: VariableName -> SolidityCode -> [String]
 variablePassedToFunction vn (SolidityCode (SourceUnit units)) = 
   removeDuplicates ([vnn | FunctionCallExpressionList (Literal 
@@ -520,7 +521,10 @@ variablePassedToFunction vn (SolidityCode (SourceUnit units)) =
     modifierCodeBlocks = [b | ContractPartModifierDefinition _ _ b <- contractPartss]
     functionCodeBlocks = [b | ContractPartFunctionDefinition _ _ _ _ (Just b) <- contractPartss]
     statements = [st | Block stmts <- modifierCodeBlocks, st <- stmts] ++ [st | Block stmts <- functionCodeBlocks, st <- stmts]
-    expressions = [e | st <- statements, e <- expressionsInStatement st]
+    inModifierInvocationsExps = [e | ContractPartFunctionDefinition _ _ tags _ _ <- contractPartss,
+                                  FunctionDefinitionTagModifierInvocation (ModifierInvocation _ (Just expList)) <- tags,
+                                  e <- unExpressionList expList]
+    expressions = [e | st <- statements, e <- expressionsInStatement st] ++ inModifierInvocationsExps
     allExpressions = [ee | e <- expressions, ee <- expressionClosure e]
 
     expressionsInMaybeStatement :: Maybe Statement -> [Expression]
