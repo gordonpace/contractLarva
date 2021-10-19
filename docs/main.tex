@@ -263,6 +263,18 @@ The automata used are, however, symbolic automata --- in that they may use and m
   \smallskip \texttt{--init-not-inlined} is a flag that can be used to tell \contractlarva not to inline the \texttt{initialisation} block right after the original smart contract's constructor original code, since you may not want to initialise the monitor with the smart contract.
   \smallskip The output file created will have the same functionality as the input one, but augmented as specified in the DEA file.
   
+  \subsection{Errors and Warnings}
+  
+  \begin{description}
+  	\item[DEA has no initial state] Ensure there is a state tagged by \texttt{initial} in the DEA.
+  	\item[DEA has more than one initial state] Ensure there is only one state tagged by \texttt{initial} in the DEA.
+  	\item[State <s> defined multiple times] Ensure label s is only used for one state.
+  	\item[State <s> used in a transition but not declared] Define state with label s in \texttt{states}.
+  	\item[Multiple DEAs named <name>] Ensure each DEA has a unique name.
+  	\item[Variable <v> passed to internal functions and/or modifiers <funcs>, and thus not all modifications to it may be caught] When monitoring for a change in a struct, mapping, or array we are not able to detect changes when the object is passed to another function or used by a modifier, since they are passed in a by reference fashion.
+  	\item[Variable <v> has a range that is a struct, mapping, or array] When monitoring for a change in a mapping we are not able to detect changes when the range is a struct, mapping, or array.
+  \end{description}
+  
   \section{Missing Features}
   \label{s:extensions}
   The following are a number of restrictions and limitations in \contractlarva v0.2$\alpha$, but which we plan to add in the future:
