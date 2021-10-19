@@ -1,5 +1,7 @@
 Still to do:
 
+* Instrumenting for variable modificatons when modification is in tuple assignment, e.g. (a, b, c) = (1, 2, 3) and we want to match modifications of a. Possible solution is to simply transform this into three statements: a = 1; b = 2; c = 3;. Moreover, in the case of (a,b) = funcThatReturnsPair(), and we are interested in a, then we can create a new variable: uint aa; (aa, b) = funcThatReturnsPair(); a = aa;, and instrument the latter.
+
 Known bugs:
 * Runtime error if the name of the contract referred to in the specification file is not found in the Solidity source.
 
