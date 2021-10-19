@@ -126,7 +126,7 @@ defineAndUseSetterFunctionForVariableInContract cn vn (fnPreValue, fnPostValue) 
   | variableIsDefinedInContract cn vn code = 
       addFunctionDefinitionsToContract cn (map parseDeclaration setterFunctionPreValues) $
       addFunctionDefinitionsToContract cn (map parseDeclaration setterFunctionPostValues) $
-      useSetterForVariableInContract cn (trace ("vn: "++ display vn) vn) (fnPreValue, fnPostValue) code $
+      useSetterForVariableInContract cn vn (fnPreValue, fnPostValue) code $
       makeVariablePrivateInContract cn vn $
       addGlobalVariableDeclarationToContract cn (parseDeclaration previousVariableValue) $
       code
@@ -756,7 +756,6 @@ instance SolidityNode Expression where
                                 (Literal (PrimaryExpressionIdentifier (Identifier $ (unIdentifier fn)++"_"++(snd $ assignmentToStruct e1))))
                                   (Just (ExpressionList [e2'']))
                           else Binary op e1 e2''
-      | otherwise = trace (display e1) (Binary op e1 e2')
     where
       assignmentOperators = ["=", "|=", "^=", "&=", "<<=", ">>=", "+=", "-=", "*=", "/=", "%="]
       assignmentToVariable = e1 == Literal (PrimaryExpressionIdentifier vn)
