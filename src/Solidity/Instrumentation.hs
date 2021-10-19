@@ -694,8 +694,29 @@ instance SolidityNode Statement where
     SimpleStatementVariableDeclarationList vds (useSetterForVariableInContract cn vn fns code <$> es)
   useSetterForVariableInContract cn vn fns code (SimpleStatementVariableAssignmentList ((Just id):[]) (e:[])) = 
     useSetterForVariableInContract cn vn fns code (SimpleStatementExpression $ Binary "=" (Literal (PrimaryExpressionIdentifier id)) e)
-  useSetterForVariableInContract cn vn fns code (SimpleStatementVariableAssignmentList (ids) (es)) = 
-    SimpleStatementVariableAssignmentList ids (useSetterForVariableInContract cn vn fns code <$> es)
+
+  useSetterForVariableInContract cn vn fns code (SimpleStatementVariableAssignmentList [] []) = (SimpleStatementVariableAssignmentList [] [])
+
+  useSetterForVariableInContract cn vn fns code (SimpleStatementVariableAssignmentList (ids) (es))
+    | length ids == 0 || length es == 0 = useSetterForVariableInContract cn vn fns code (SimpleStatementVariableAssignmentList (ids) (es))
+    | length ids == length es = BlockStatement (Block (unfurl (SimpleStatementVariableAssignmentList (ids) (es))))
+    | otherwise = if Just vn `elem` (ids)
+                    then newStatement
+                    else SimpleStatementVariableAssignmentList ids (useSetterForVariableInContract cn vn fns code <$> es)
+        where 
+          unfurl (SimpleStatementVariableAssignmentList (id:ids) (e:es)) = ((useSetterForVariableInContract cn vn fns code (SimpleStatementVariableAssignmentList [id] [e])) : unfurl (SimpleStatementVariableAssignmentList (ids) (es)))
+          unfurl (SimpleStatementVariableAssignmentList [] []) = []
+          rest = useSetterForVariableInContract cn vn fns code (SimpleStatementVariableAssignmentList (ids) (es))
+          newVar = Identifier (unIdentifier vn ++ "_LARVA")
+          newVarDecl = VariableDeclaration (getVariableTypeInContract cn vn code) Nothing newVar
+          varDecStmt = SimpleStatementVariableDeclarationList [Just newVarDecl] []
+          setLater = useSetterForVariableInContract cn vn fns code $ SimpleStatementExpression (Binary "=" (Literal (PrimaryExpressionIdentifier vn)) (Literal (PrimaryExpressionIdentifier newVar)))
+          newIds = replaceWithInList vn newVar ids
+          replaceWithInList _ _ [] = []
+          replaceWithInList x y (Just z:zs) = if x == z then (Just y: (replaceWithInList x y zs)) else (Just z: (replaceWithInList x y zs))
+          replaceWithInList x y (Nothing:zs) = (Nothing: (replaceWithInList x y zs))
+          newStatement = BlockStatement (Block [varDecStmt, SimpleStatementVariableAssignmentList newIds (useSetterForVariableInContract cn vn fns code <$> es), setLater])
+      
   useSetterForVariableInContract cn vn fns code (SimpleStatementVariableList il e) =
     SimpleStatementVariableList il (useSetterForVariableInContract cn vn fns code <$> e)
   useSetterForVariableInContract _ _ _ _ s = s
