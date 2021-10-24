@@ -84,8 +84,9 @@ functionIsPublicInContract cn fn code =
 
 variableIsDefinedInContract :: ContractName -> VariableName -> SolidityCode -> Bool
 variableIsDefinedInContract cn vn code =
-  let Just c = getContract cn code
-  in  not $ null [ visibility vd |  ContractPartStateVariableDeclaration vd <- contractParts c, variableName vd == vn ]
+  case getContract cn code of
+    Nothing -> False
+    Just c -> not $ null [ visibility vd |  ContractPartStateVariableDeclaration vd <- contractParts c, variableName vd == vn ]
 
 variableIsPublicInContract :: ContractName -> VariableName -> SolidityCode -> Bool
 variableIsPublicInContract cn vn code =
