@@ -23,7 +23,5 @@ cabal.project.local
 *.blg
 *.log
 *.txt
-*.sol
 *.exe
-*.dea
 *.gz
