@@ -392,13 +392,11 @@ instance Parseable FunctionDefinitionTag where
   display (FunctionDefinitionTagStateMutability s) = display s
   display FunctionDefinitionTagPublic = "public"
   display FunctionDefinitionTagPrivate = "private"
-  display FunctionDefinitionTagInternal = "internal"
 
   parser = choice
     [ try $ FunctionDefinitionTagStateMutability <$> parser
     , try $ const FunctionDefinitionTagPublic <$> keyword "public"
-    , const FunctionDefinitionTagPrivate <$> keyword "private"
-    , const FunctionDefinitionTagInternal <$> keyword "internal"
+    , try $ const FunctionDefinitionTagPrivate <$> keyword "private"
     , try $ FunctionDefinitionTagModifierInvocation <$> parser
     ]
 

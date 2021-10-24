@@ -165,14 +165,13 @@ data ModifierInvocation =
   } deriving (Show, Eq, Ord)
 
 -------------------------------------------------------------------------------
--- FunctionDefinitionTag = ModifierInvocation | StateMutability | 'public' | 'internal' | 'private'
+-- FunctionDefinitionTag = ModifierInvocation | StateMutability | 'public' | 'private'
 
 data FunctionDefinitionTag
   = FunctionDefinitionTagModifierInvocation ModifierInvocation
   | FunctionDefinitionTagStateMutability StateMutability
   | FunctionDefinitionTagPublic
   | FunctionDefinitionTagPrivate
-  | FunctionDefinitionTagInternal
   deriving (Show, Eq, Ord)
 
 -------------------------------------------------------------------------------
