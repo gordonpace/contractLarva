@@ -33,7 +33,7 @@ module Solidity.Instrumentation (
   addTopModifierToAllButTheseFunctionInContract,
 
   functionIsPublicInContract, functionIsDefinedInContract,
-  defineAndUseSetterFunctionForVariableInContract, defineAndUseSetterFunctionForTransferInContract,
+  defineAndUseSetterFunctionForVariableInContract, defineAndUseSetterFunctionForTransferInContract, defineAndUseSetterFunctionForSelfDestructInContract,
 
   variableIsDefinedInContract, variableIsPublicInContract, getVariableTypeInContract,
 
@@ -121,6 +121,14 @@ defineAndUseSetterFunctionForTransferInContract cn code =
       code
   where
     transferFunction = "function LARVA_transfer(address payable _to, uint amount) internal {_to.transfer(amount);}"
+
+defineAndUseSetterFunctionForSelfDestructInContract :: ContractName -> Instrumentation
+defineAndUseSetterFunctionForSelfDestructInContract cn code = 
+      addFunctionDefinitionToContract cn (parseDeclaration selfdestructFunction) $
+      useSetterForVariableInContract cn (Identifier "unused") (Identifier "LARVA_selfdestruct", Identifier "unused") code $
+      code
+  where
+    selfdestructFunction = "function LARVA_selfdestruct(address payable _to) internal {selfdestruct(_to);}"
 
 defineAndUseSetterFunctionForVariableInContract :: ContractName -> VariableName -> (FunctionName, FunctionName) -> Instrumentation
 defineAndUseSetterFunctionForVariableInContract cn vn (fnPreValue, fnPostValue) code 
@@ -806,10 +814,14 @@ instance SolidityNode Expression where
           (useSetterForVariableInContract cn vn fns code e3)
   useSetterForVariableInContract cn vn fns code (FunctionCallNameValueList e ps) =
     FunctionCallNameValueList (useSetterForVariableInContract cn vn fns code e) ps
-  useSetterForVariableInContract cn vn fns@(fn,_) code ((FunctionCallExpressionList (MemberAccess target (Identifier "transfer")) (Just (ExpressionList expList)))) =
+  useSetterForVariableInContract cn _ ((Identifier "LARVA_transfer"),_) code ((FunctionCallExpressionList (MemberAccess target (Identifier "transfer")) (Just (ExpressionList expList)))) =
       FunctionCallExpressionList
-            (Literal (PrimaryExpressionIdentifier fn))
+            (Literal (PrimaryExpressionIdentifier (Identifier "LARVA_transfer")))
               (Just (ExpressionList (target:expList)))
+  useSetterForVariableInContract cn _ ((Identifier "LARVA_selfdestruct"),_) code ((FunctionCallExpressionList (Literal (PrimaryExpressionIdentifier (Identifier "selfdestruct"))) (Just (ExpressionList expList)))) =
+      FunctionCallExpressionList
+            (Literal (PrimaryExpressionIdentifier (Identifier "LARVA_selfdestruct")))
+              (Just (ExpressionList (expList)))
   useSetterForVariableInContract cn vn fns code (FunctionCallExpressionList e ps) =
     FunctionCallExpressionList
       (useSetterForVariableInContract cn vn fns code e)

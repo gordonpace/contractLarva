@@ -94,8 +94,9 @@ instrumentContractSpecification monitor notInlined =
           ++ declarations monitor
     ) |>
 
-  -- (v.0) Add setters for transfer
+  -- (v.0) Add setters for transfer and selfdestruct
     defineAndUseSetterFunctionForTransferInContract contract' |>
+    defineAndUseSetterFunctionForSelfDestructInContract contract' |>
     
   -- (v) Add setters for relevant variables
     foldl (.) id
@@ -151,10 +152,27 @@ instrumentContractSpecification monitor notInlined =
               sortOn fst [(event $ label t, t) | t <- transitions dea])
       ) code
       where
+        -- distributeNameMatch :: [[(Event, Transition)]] -> [[(Event, Transition)]]
+        -- distributeNameMatch [e,ts]:ets = 
+        -- distributeNameMatchForEvent :: Event -> [[(Event, Transition)]] -> [[(Event, Transition)]]
+        -- distributeNameMatchForEvent (UponEntry f) ets = if parametersPassed f = Nothing 
+        --                                                   then ets
+        --                                                   else 
+        
+        -- pushNothingToBack ((UponEntry f, t):es) = if parametersPassed f == Nothing
+        --                                         then (pushNothingToBack es) ++ [(UponEntry f, t)]
+        --                                         else ((UponEntry f, t):es)
+        -- pushNothingToBack ((UponExit f,t):es) = if parametersPassed f == Nothing
+        --                                         then (pushNothingToBack es) ++ [(UponExit f, t)]
+        --                                         else ((UponExit f, t):es)
+        -- pushNothingToBack [] = []
+
         sameEvent (UponEntry f) (UponEntry f') = f==f'
-        sameEvent (UponExit f) (UponExit f') = f==f'
+        sameEvent (UponExit f) (UponExit f') =  f==f'
         sameEvent (BeforeTransfer) (BeforeTransfer) = True
         sameEvent (AfterTransfer) (AfterTransfer) = True
+        sameEvent (BeforeSelfDestruct) (BeforeSelfDestruct) = True
+        sameEvent (AfterSelfDestruct) (AfterSelfDestruct) = True
         sameEvent (VariableAssignment v _) (VariableAssignment v' _) = v==v'
         sameEvent _ _ = False
 
@@ -193,6 +211,10 @@ instrumentContractSpecification monitor notInlined =
           "LARVA_DEA_"++show deaNumber++"_handle_before_transfer"
         nameModifier (AfterTransfer) =
           "LARVA_DEA_"++show deaNumber++"_handle_after_transfer"
+        nameModifier (BeforeSelfDestruct) =
+          "LARVA_DEA_"++show deaNumber++"_handle_before_selfdestruct"
+        nameModifier (AfterSelfDestruct) =
+          "LARVA_DEA_"++show deaNumber++"_handle_after_selfdestruct"
         nameModifier (VariableAssignment vn _) =
           "LARVA_DEA_"++show deaNumber++"_handle_after_assignment_"++display vn
 
@@ -269,6 +291,24 @@ instrumentContractSpecification monitor notInlined =
               -- Add modifier to setter functions
               addTopModifierToFunctionsInContract contractName
                 [ Identifier ("LARVA_transfer")
+                ]
+                (Identifier modifierName, ExpressionList [])
+        instrumentForEvent (e@(BeforeSelfDestruct), ts) =
+          let modifierName =  nameModifier e
+          in  -- Define modifier to trigger transitions
+              (\x -> (addContractPart contractName $ parser' $ modifierCode x contractName modifierName Nothing False ts) x)|>
+              -- Add modifier to setter functions
+              addTopModifierToFunctionsInContract contractName
+                [ Identifier ("LARVA_selfdestruct")
+                ]
+                (Identifier modifierName, ExpressionList [])
+        instrumentForEvent (e@(AfterSelfDestruct), ts) =
+          let modifierName =  nameModifier e
+          in  -- Define modifier to trigger transitions
+              (\x -> (addContractPart contractName $ parser' $ modifierCode x contractName modifierName Nothing False ts) x)|>
+              -- Add modifier to setter functions
+              addTopModifierToFunctionsInContract contractName
+                [ Identifier ("LARVA_selfdestruct")
                 ]
                 (Identifier modifierName, ExpressionList [])
 

@@ -37,6 +37,8 @@ data Event
   | UponExit FunctionCall
   | BeforeTransfer
   | AfterTransfer
+  | BeforeSelfDestruct
+  | AfterSelfDestruct
   | VariableAssignment VariableName (Maybe Expression)
   deriving (Eq, Ord, Show)
 
