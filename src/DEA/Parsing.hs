@@ -201,6 +201,10 @@ instance Parseable Event where
   parser =
     try (UponEntry <$> (readKeyword "before" *> whitespace *> char '(' *> whitespace *> parser <* whitespace <* char ')')) <|>
     try (UponExit <$> (readKeyword "after" *> whitespace *> char '(' *> whitespace *> parser <* whitespace <* char ')')) <|>
+    try ((readKeyword "beforetransfer" <* whitespace *> return BeforeTransfer)) <|>
+    try ((readKeyword "aftertransfer" <* whitespace *> return AfterTransfer)) <|>
+    try ((readKeyword "beforeselfdestruct" <* whitespace *> return BeforeSelfDestruct)) <|>
+    try ((readKeyword "afterselfdestruct" <* whitespace *> return AfterSelfDestruct)) <|>
     (VariableAssignment <$>
         (parser <* whitespace <* char '@' <* whitespace <* char '(' <* whitespace) <*>
         (try (Just <$> parser <* whitespace <* char ')') <|> return Nothing)
@@ -208,6 +212,10 @@ instance Parseable Event where
 
   display (UponEntry fn) = "before("++display fn++")"
   display (UponExit fn) = "after("++display fn++")"
+  display (BeforeTransfer) = "beforetransfer"
+  display (AfterTransfer) = "aftertransfer"
+  display (BeforeSelfDestruct) = "beforeselfdestruct"
+  display (AfterSelfDestruct) = "afterselfdestruct"
   display (VariableAssignment vn e) = display vn ++maybe "" (\e -> "@("++display e++")") e
 
 instance Parseable FunctionCall where

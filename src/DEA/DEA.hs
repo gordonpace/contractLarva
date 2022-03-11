@@ -22,6 +22,7 @@ module DEA.DEA (
 
     functionCallEventHasParameters, getFunctionParametersFromEvent,
     problemsSpecification, problemsContractSpecification, problemsDEA,
+    warningsSpecificationCode,
     ContractSpecification (..), Specification (..),
     module Solidity
   ) where
@@ -34,6 +35,10 @@ import Solidity
 data Event
   = UponEntry FunctionCall
   | UponExit FunctionCall
+  | BeforeTransfer
+  | AfterTransfer
+  | BeforeSelfDestruct
+  | AfterSelfDestruct
   | VariableAssignment VariableName (Maybe Expression)
   deriving (Eq, Ord, Show)
 
@@ -151,8 +156,39 @@ problemsDEA dea =
   ] ++
   [ "State <"++unState s++"> used in a transition but not declared"
   | s <- tstates, s `notElem` allStates dea
-  ]
+  ] 
   where
     tstates = nub $ concat [ [src transition, dst transition] | transition <- transitions dea ]
 
+warningsSpecificationCode :: Specification -> SolidityCode -> [String]
+warningsSpecificationCode spec code = let warnings = [s | sp <- contractSpecifications spec, s <- warningsContractSpecificationCode sp code]
+                                        in if warnings /= []
+                                              then ["Warnings:"] ++ warnings
+                                              else warnings
 
+warningsContractSpecificationCode :: ContractSpecification -> SolidityCode -> [String]
+warningsContractSpecificationCode spec code = [s | dea <- deas spec, s <- warningsDEACode dea code]
+
+warningsDEACode :: DEA -> SolidityCode -> [String]
+warningsDEACode dea (SolidityCode (SourceUnit units)) =
+  [ "Variable <"++unIdentifier vn++"> passed to internal functions and/or modifiers <" ++ (intercalate "," (functionsPassedTo vn)) ++">, and thus not all modifications to it may be caught"
+  | vn <- mappingArrayOrStructVariableAssignments, [] /= functionsPassedTo vn] ++
+  [ "Variable <"++unIdentifier vn++"> has a range that is a struct, mapping, or array"
+  | vn <- mappingArrayOrStructVariableAssignments, hasMappingArrayOrStructAsRange vn]
+  where
+    mappingArrayOrStructVariableAssignments = removeDuplicates [vn | t <- transitions dea, VariableAssignment vn _ <- [event $ label t], isMappingArrayOrStruct vn]
+    removeDuplicates [] = []
+    removeDuplicates (x:xs) = if x `elem` xs
+                                then removeDuplicates xs
+                                else (x:removeDuplicates xs)
+    getVariableTypesInContract vn =
+      [ typename vd | (SourceUnit1_ContractDefinition c) <- units, ContractPartStateVariableDeclaration vd <- contractParts c, variableName vd == vn ]
+    isMappingArrayOrStruct vn = [] /= ([vn | TypeNameMapping _ _ <- getVariableTypesInContract vn] 
+                                      ++ [vn | TypeNameArrayTypeName _ _ <- getVariableTypesInContract vn] 
+                                      ++ [vn | TypeNameUserDefinedTypeName _ <- getVariableTypesInContract vn])
+    hasMappingArrayOrStructAsRange vn = [] /= [vn | TypeNameMapping _ (TypeNameMapping _ _) <- getVariableTypesInContract vn]
+    functionsPassedTo vn = (removeItems ["require", "assert", "payable", "address"] $ variablePassedToFunction vn (SolidityCode (SourceUnit units)))
+    removeItems _ [] = []
+    removeItems xs (y:ys) = if y `elem` xs
+                            then removeItems xs ys
+                            else (y: (removeItems xs ys))

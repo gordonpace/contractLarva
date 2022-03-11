@@ -23,6 +23,10 @@ To compile contractLarva, you need a recent version of [GHC](https://www.haskell
 
 > contractlarva &lt;specification.dae&gt; &lt;input.sol&gt; &lt;output.sol&gt;
 
+or to prevent the initialisation block from being executed as part of the smart contract constructor add the `--init-not-inlined` flag:
+
+> contractlarva &lt;specification.dae&gt; &lt;input.sol&gt; &lt;output.sol&gt; --init-not-inlined
+
 ## License
 This project is licensed under the terms of the [Apache 2.0 license](LICENSE).
 

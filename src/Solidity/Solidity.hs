@@ -45,7 +45,7 @@ module Solidity.Solidity (
 
   FunctionName, VariableName, ContractName, ModifierName,
 
-  untypeParameterList, typeParameterList, addMemoryLocationToParametersList
+  untypeParameterList, typeParameterList, addMemoryLocationToParametersList, variablePassedToFunction
 ) where
 
 import Data.Maybe
@@ -165,7 +165,7 @@ data ModifierInvocation =
   } deriving (Show, Eq, Ord)
 
 -------------------------------------------------------------------------------
--- FunctionDefinitionTag = ModifierInvocation | StateMutability | 'public' | 'internal' | 'private'
+-- FunctionDefinitionTag = ModifierInvocation | StateMutability | 'public' | 'private'
 
 data FunctionDefinitionTag
   = FunctionDefinitionTagModifierInvocation ModifierInvocation
@@ -468,7 +468,6 @@ data FunctionalAssemblyExpression = FunctionalAssemblyExpression Identifier [Ass
 
 -- -------------------------------------------------------------------------------
 
-
 typeParameterList :: UntypedParameterList -> ParameterList -> ParameterList
 typeParameterList (UntypedParameterList ups) (ParameterList tps) =
   ParameterList $ zipWith
@@ -503,3 +502,60 @@ addMemoryLocationToListOfParameters (x:rest) = let newRest = (addMemoryLocationT
 
 addMemoryLocationToParametersList :: ParameterList -> ParameterList
 addMemoryLocationToParametersList (ParameterList ps) = ParameterList (addMemoryLocationToListOfParameters ps)
+
+-- -------------------------------------------------------------------------------
+
+
+variablePassedToFunction :: VariableName -> SolidityCode -> [String]
+variablePassedToFunction vn (SolidityCode (SourceUnit units)) = 
+  removeDuplicates ([vnn | FunctionCallExpressionList (Literal 
+                      (PrimaryExpressionIdentifier (Identifier vnn)))
+                      params <- allExpressions,
+                      Literal (PrimaryExpressionIdentifier vnnn) <- expressionClosure (FunctionCallExpressionList (Literal (PrimaryExpressionIdentifier (Identifier vnn))) params), vnnn == vn]
+                    ++
+                    [vnn | FunctionCallNameValueList (Literal (PrimaryExpressionIdentifier (Identifier vnn))) params <- allExpressions,
+                      Literal (PrimaryExpressionIdentifier vnnn) <- expressionClosure (FunctionCallNameValueList (Literal (PrimaryExpressionIdentifier (Identifier vnn))) params), vnnn == vn])
+  where
+    contractPartss = [cp | SourceUnit1_ContractDefinition cd <- units, cp <- contractParts cd]
+    modifierCodeBlocks = [b | ContractPartModifierDefinition _ _ b <- contractPartss]
+    functionCodeBlocks = [b | ContractPartFunctionDefinition _ _ _ _ (Just b) <- contractPartss]
+    statements = [st | Block stmts <- modifierCodeBlocks, st <- stmts] ++ [st | Block stmts <- functionCodeBlocks, st <- stmts]
+    inModifierInvocationsExps = [e | ContractPartFunctionDefinition _ _ tags _ _ <- contractPartss,
+                                  FunctionDefinitionTagModifierInvocation (ModifierInvocation _ (Just expList)) <- tags,
+                                  e <- unExpressionList expList]
+    expressions = [e | st <- statements, e <- expressionsInStatement st] ++ inModifierInvocationsExps
+    allExpressions = [ee | e <- expressions, ee <- expressionClosure e]
+
+    expressionsInMaybeStatement :: Maybe Statement -> [Expression]
+    expressionsInMaybeStatement (Just st) = expressionsInStatement st
+    expressionsInMaybeStatement Nothing = []
+
+    expressionsInStatement :: Statement -> [Expression]
+    expressionsInStatement (IfStatement e st mst) = (e:(expressionsInMaybeStatement mst))
+    expressionsInStatement (WhileStatement e st) = (e:(expressionsInStatement st))
+    expressionsInStatement (ForStatement (mst, me, mee) st) = (expressionsInMaybeStatement mst) ++ [e | Just e <- [me,mee]] ++ (expressionsInStatement st)
+    expressionsInStatement (BlockStatement (Block sts)) = [e | st <- sts, e <- expressionsInStatement st]
+    expressionsInStatement (DoWhileStatement st e) = (expressionsInStatement st) ++ [e]
+    expressionsInStatement (Return (Just e)) = [e]
+    expressionsInStatement (EmitStatement e) = [e]
+    expressionsInStatement (SimpleStatementExpression e) = [e]
+    expressionsInStatement (SimpleStatementVariableList _ (Just e)) = [e]
+    expressionsInStatement (SimpleStatementVariableDeclarationList _ es) = es
+    expressionsInStatement (SimpleStatementVariableAssignmentList _ es) = es
+    expressionsInStatement _ = []
+
+    expressionClosure :: Expression -> [Expression]
+    expressionClosure (Unary s e) = [(Unary s e)] ++ (e:(expressionClosure e))
+    expressionClosure (Binary s e ee) = [(Binary s e ee)] ++ [e] ++ (expressionClosure e) ++ (expressionClosure ee)
+    expressionClosure (Ternary s e ee eee) = [(Ternary s e ee eee)] ++ [e] ++ (expressionClosure e) ++ (expressionClosure ee) ++ (expressionClosure eee)
+    expressionClosure (FunctionCallNameValueList e Nothing) = [(FunctionCallNameValueList e Nothing)] ++ [e] ++ (expressionClosure e)
+    expressionClosure (FunctionCallNameValueList e (Just (NameValueList nameValueList))) = [(FunctionCallNameValueList e (Just (NameValueList nameValueList)))] ++ [e] ++ (expressionClosure e) ++ [eee | (_, ee) <- nameValueList, eee <- expressionClosure ee]
+    expressionClosure (FunctionCallExpressionList e Nothing) = [(FunctionCallExpressionList e Nothing)] ++ [e] ++ (expressionClosure e)
+    expressionClosure (FunctionCallExpressionList e (Just expList)) = [(FunctionCallExpressionList e (Just expList))] ++ [e] ++ (expressionClosure e) ++ [eee | ee <- unExpressionList expList, eee <- expressionClosure ee]
+    expressionClosure (MemberAccess e i) = [(MemberAccess e i)] ++ [e] ++ expressionClosure e
+    expressionClosure x = [x]
+
+    removeDuplicates [] = []
+    removeDuplicates (x:xs) = if x `elem` xs
+                                then removeDuplicates xs
+                                else (x:removeDuplicates xs)

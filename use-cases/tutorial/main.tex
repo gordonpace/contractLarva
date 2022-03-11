@@ -29,7 +29,7 @@
 \begin{document}
 \title{\contractlarva v0.2$\alpha$\\Tutorial}
 \author{Shaun Azzopardi\\\texttt{shaun.azzopardi@um.edu.mt}}
-\date{19 November 2019}
+\date{19 November 2019, modified 24 October 2021}
 \maketitle
 
 
@@ -1029,4 +1029,12 @@ monitor SmartAuctionHouse{
     }
 }
 \end{lstlisting}\normalsize
+
+\subsection{Other}
+
+\subsubsection{Ensuring Wallet maintains deposit}
+
+\texttt{<name>:} \verb+WalletWithDeposit+\\
+
+We consider a wallet that must be initialised with some ether. Upon the smart contract being self destructed the deposit must be given to a set address, and the owner receives any remaining ether. We enforce with a specification that any transfer from the wallet (except during self-destruct) never results in the deposit leaving the wallet, and that the deposit owner's address is never changed to be the same as that of the owner. Moreover we check that the history variable, of mapping type, always maintains correct information.
 \end{document}

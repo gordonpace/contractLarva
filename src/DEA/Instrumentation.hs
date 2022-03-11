@@ -30,7 +30,7 @@ import Solidity
 import Debug.Trace
 
 instrumentContractSpecification :: ContractSpecification -> Bool -> Instrumentation
-instrumentContractSpecification monitor inliningFlag =
+instrumentContractSpecification monitor notInlined =
   -- (i)  Rename contract to LARVA_contract
     renameContract (contract, contract') |>
         --rename old-style constructor to new contract name
@@ -94,6 +94,10 @@ instrumentContractSpecification monitor inliningFlag =
           ++ declarations monitor
     ) |>
 
+  -- (v.0) Add setters for transfer and selfdestruct
+    defineAndUseSetterFunctionForTransferInContract contract' |>
+    defineAndUseSetterFunctionForSelfDestructInContract contract' |>
+    
   -- (v) Add setters for relevant variables
     foldl (.) id
     [ defineAndUseSetterFunctionForVariableInContract contract' v
@@ -101,6 +105,7 @@ instrumentContractSpecification monitor inliningFlag =
     | v <- getVariablesFromContractSpecification monitor
     , let vn = display v
     ] |>
+
 
   -- Start instrumenting the DEAs
   -- (vi) Add variables to store state of each DEA: LARVA_STATE_n, all initialised to 0.
@@ -125,6 +130,7 @@ instrumentContractSpecification monitor inliningFlag =
               addTopModifierToContractConstructor contract' (Identifier "LARVA_Constructor", ExpressionList []))
 
   where
+    inliningFlag = not notInlined
     contract = contractName monitor
     contract' = Identifier $ "LARVA_" ++ display contract
 
@@ -146,8 +152,27 @@ instrumentContractSpecification monitor inliningFlag =
               sortOn fst [(event $ label t, t) | t <- transitions dea])
       ) code
       where
+        -- distributeNameMatch :: [[(Event, Transition)]] -> [[(Event, Transition)]]
+        -- distributeNameMatch [e,ts]:ets = 
+        -- distributeNameMatchForEvent :: Event -> [[(Event, Transition)]] -> [[(Event, Transition)]]
+        -- distributeNameMatchForEvent (UponEntry f) ets = if parametersPassed f = Nothing 
+        --                                                   then ets
+        --                                                   else 
+        
+        -- pushNothingToBack ((UponEntry f, t):es) = if parametersPassed f == Nothing
+        --                                         then (pushNothingToBack es) ++ [(UponEntry f, t)]
+        --                                         else ((UponEntry f, t):es)
+        -- pushNothingToBack ((UponExit f,t):es) = if parametersPassed f == Nothing
+        --                                         then (pushNothingToBack es) ++ [(UponExit f, t)]
+        --                                         else ((UponExit f, t):es)
+        -- pushNothingToBack [] = []
+
         sameEvent (UponEntry f) (UponEntry f') = f==f'
-        sameEvent (UponExit f) (UponExit f') = f==f'
+        sameEvent (UponExit f) (UponExit f') =  f==f'
+        sameEvent (BeforeTransfer) (BeforeTransfer) = True
+        sameEvent (AfterTransfer) (AfterTransfer) = True
+        sameEvent (BeforeSelfDestruct) (BeforeSelfDestruct) = True
+        sameEvent (AfterSelfDestruct) (AfterSelfDestruct) = True
         sameEvent (VariableAssignment v _) (VariableAssignment v' _) = v==v'
         sameEvent _ _ = False
 
@@ -182,6 +207,14 @@ instrumentContractSpecification monitor inliningFlag =
         nameModifier (UponExit fc) =
           "LARVA_DEA_"++show deaNumber++"_handle_after_"++display (functionName fc)++
           maybe "__no_parameters" (\ps -> "__parameters_"++intercalate "_" (map display $ fromUntypedParameterList ps)) (parametersPassed fc)
+        nameModifier (BeforeTransfer) =
+          "LARVA_DEA_"++show deaNumber++"_handle_before_transfer"
+        nameModifier (AfterTransfer) =
+          "LARVA_DEA_"++show deaNumber++"_handle_after_transfer"
+        nameModifier (BeforeSelfDestruct) =
+          "LARVA_DEA_"++show deaNumber++"_handle_before_selfdestruct"
+        nameModifier (AfterSelfDestruct) =
+          "LARVA_DEA_"++show deaNumber++"_handle_after_selfdestruct"
         nameModifier (VariableAssignment vn _) =
           "LARVA_DEA_"++show deaNumber++"_handle_after_assignment_"++display vn
 
@@ -240,6 +273,42 @@ instrumentContractSpecification monitor inliningFlag =
               addTopModifierToFunctionsInContract contractName
                 [ Identifier ("LARVA_set_"++display variableName++"_pre")
                 , Identifier ("LARVA_set_"++display variableName++"_post")
+                ]
+                (Identifier modifierName, ExpressionList [])
+        instrumentForEvent (e@(BeforeTransfer), ts) =
+          let modifierName =  nameModifier e
+          in  -- Define modifier to trigger transitions
+              (\x -> (addContractPart contractName $ parser' $ modifierCode x contractName modifierName Nothing False ts) x)|>
+              -- Add modifier to setter functions
+              addTopModifierToFunctionsInContract contractName
+                [ Identifier ("LARVA_transfer")
+                ]
+                (Identifier modifierName, ExpressionList [])
+        instrumentForEvent (e@(AfterTransfer), ts) =
+          let modifierName =  nameModifier e
+          in  -- Define modifier to trigger transitions
+              (\x -> (addContractPart contractName $ parser' $ modifierCode x contractName modifierName Nothing False ts) x)|>
+              -- Add modifier to setter functions
+              addTopModifierToFunctionsInContract contractName
+                [ Identifier ("LARVA_transfer")
+                ]
+                (Identifier modifierName, ExpressionList [])
+        instrumentForEvent (e@(BeforeSelfDestruct), ts) =
+          let modifierName =  nameModifier e
+          in  -- Define modifier to trigger transitions
+              (\x -> (addContractPart contractName $ parser' $ modifierCode x contractName modifierName Nothing False ts) x)|>
+              -- Add modifier to setter functions
+              addTopModifierToFunctionsInContract contractName
+                [ Identifier ("LARVA_selfdestruct")
+                ]
+                (Identifier modifierName, ExpressionList [])
+        instrumentForEvent (e@(AfterSelfDestruct), ts) =
+          let modifierName =  nameModifier e
+          in  -- Define modifier to trigger transitions
+              (\x -> (addContractPart contractName $ parser' $ modifierCode x contractName modifierName Nothing False ts) x)|>
+              -- Add modifier to setter functions
+              addTopModifierToFunctionsInContract contractName
+                [ Identifier ("LARVA_selfdestruct")
                 ]
                 (Identifier modifierName, ExpressionList [])
 

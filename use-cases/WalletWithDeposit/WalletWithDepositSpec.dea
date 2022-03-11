@@ -1,0 +1,33 @@
+monitor WalletWithDeposit{
+
+    declarations{
+    }
+
+    initialisation{
+        LARVA_EnableContract();
+    }
+    
+    reparation{
+        revert();
+    }
+
+    DEA ProtectedDeposit{
+        states{
+            Start: initial;
+            Ending;
+            LessThanDeposit: bad;
+            DepositModified: bad;
+            OwnerIsSameAsDepositProvider: bad;
+            BadHistoryModification: bad;
+        }
+
+        transitions{
+            Start -[aftertransfer | address(this).balance >= deposit]-> LessThanDeposit;
+            Start -[deposit@(true)]-> DepositModified;
+            Start -[depositProvider@(owner == depositProvider.wallet)]-> OwnerIsSameAsDepositProvider;
+            Start -[history@(history[depositProvider.wallet] != depositProvider.name)]-> BadHistoryModification;
+            Start -[before(end())]-> Ending;
+        }
+    }
+
+}
